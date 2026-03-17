@@ -83,12 +83,12 @@ export function RoomList({ initialRooms, isLoggedIn }: RoomListProps) {
             创建房间
           </Link>
         ) : (
-          <Link
-            href="/api/auth/login"
+          <button
+            onClick={() => window.location.href = "/api/auth/login"}
             className="inline-flex items-center gap-2 px-6 py-3 bg-[#2D3436] text-white rounded-xl font-medium hover:bg-[#636E72] transition-colors"
           >
             登录后创建
-          </Link>
+          </button>
         )}
       </div>
     );

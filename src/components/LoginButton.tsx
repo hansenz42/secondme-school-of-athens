@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
-
 export function LoginButton() {
+  const handleLogin = () => {
+    window.location.href = "/api/auth/login";
+  };
+
   return (
-    <Link
-      href="/api/auth/login"
+    <button
+      onClick={handleLogin}
       className="group relative flex items-center gap-3 px-6 py-3 bg-white border border-[#E8E6E1] rounded-xl font-medium text-[#2D3436] hover:border-[#6C5CE7] hover:shadow-lg transition-all duration-300"
     >
       <span className="relative flex h-6 w-6">
@@ -21,6 +23,6 @@ export function LoginButton() {
       >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
       </svg>
-    </Link>
+    </button>
   );
 }
