@@ -24,11 +24,11 @@ export async function exchangeCodeForToken(code: string) {
   const response = await fetch(process.env.SECONDME_TOKEN_ENDPOINT!, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: JSON.stringify({
+    body: new URLSearchParams({
       client_id: SECONDME_CLIENT_ID,
-      client_secret: process.env.SECONDME_CLIENT_SECRET,
+      client_secret: process.env.SECONDME_CLIENT_SECRET!,
       code,
       grant_type: "authorization_code",
       redirect_uri: SECONDME_REDIRECT_URI,
@@ -42,9 +42,9 @@ export async function exchangeCodeForToken(code: string) {
   }
 
   return {
-    accessToken: data.data.access_token,
-    refreshToken: data.data.refresh_token,
-    expiresIn: data.data.expires_in,
+    accessToken: data.data.accessToken,
+    refreshToken: data.data.refreshToken,
+    expiresIn: data.data.expiresIn,
   };
 }
 
@@ -53,11 +53,11 @@ export async function refreshAccessToken(refreshToken: string) {
   const response = await fetch(process.env.SECONDME_REFRESH_ENDPOINT!, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: JSON.stringify({
+    body: new URLSearchParams({
       client_id: SECONDME_CLIENT_ID,
-      client_secret: process.env.SECONDME_CLIENT_SECRET,
+      client_secret: process.env.SECONDME_CLIENT_SECRET!,
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
@@ -70,9 +70,9 @@ export async function refreshAccessToken(refreshToken: string) {
   }
 
   return {
-    accessToken: data.data.access_token,
-    refreshToken: data.data.refresh_token,
-    expiresIn: data.data.expires_in,
+    accessToken: data.data.accessToken,
+    refreshToken: data.data.refreshToken,
+    expiresIn: data.data.expiresIn,
   };
 }
 
