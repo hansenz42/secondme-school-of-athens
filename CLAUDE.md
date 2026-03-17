@@ -1,8 +1,8 @@
-# SecondMe 集成项目
+# SecondMe 集成项目 - 雅典学院
 
 ## 应用信息
 
-- **App Name**: secondme-profile
+- **App Name**: athena-academy
 - **Client ID**: 5d54036c-dfe4-****
 
 ## API 文档
