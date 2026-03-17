@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCodeForToken, createOrUpdateUser, generateState } from "@/lib/auth";
+import { exchangeCodeForToken, getUserInfo, createOrUpdateUser } from "@/lib/auth";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const receivedState = searchParams.get("state");
   const error = searchParams.get("error");
+  const errorDescription = searchParams.get("error_description");
 
   // 处理错误
   if (error) {
-    console.error("OAuth error:", error);
+    console.error("OAuth error:", error, errorDescription);
     return NextResponse.redirect(new URL(`/?error=${error}`, request.url));
   }
 
   // 验证 code
   if (!code) {
+    console.error("OAuth callback: missing code");
     return NextResponse.redirect(new URL("/?error=missing_code", request.url));
   }
 
@@ -29,14 +31,24 @@ export async function GET(request: Request) {
 
   try {
     // 交换 code 获取 token
+    console.log("Exchanging code for token...");
     const tokens = await exchangeCodeForToken(code);
+    console.log("Token exchanged successfully");
+
+    // 获取用户信息以获取用户 ID
+    console.log("Fetching user info...");
+    const userInfo = await getUserInfo(tokens.accessToken);
+    console.log("User info fetched:", userInfo);
+
+    // 使用 SecondMe 返回的用户 ID
+    const secondmeUserId = userInfo.user_id || userInfo.id || userInfo.sub;
+    if (!secondmeUserId) {
+      throw new Error("Cannot get user ID from user info");
+    }
 
     // 创建或更新用户
-    // 从 token 中解析用户 ID（如果有的话），否则通过 user info API 获取
     const user = await createOrUpdateUser(
-      // 这里需要用户 ID，由于 SecondMe API 返回的数据结构未知，
-      // 我们先使用一个占位符，实际需要根据 API 返回的用户 ID 来调整
-      tokens.accessToken.substring(0, 32), // 临时使用 access token 前 32 位作为 ID
+      secondmeUserId,
       tokens.accessToken,
       tokens.refreshToken,
       tokens.expiresIn
@@ -54,7 +66,7 @@ export async function GET(request: Request) {
     // 清除 oauth state cookie
     cookieStore.delete("oauth_state");
 
-    // 跳转到首页或用户之前访问的页面
+    // 跳转到首页
     return NextResponse.redirect(new URL("/", request.url));
   } catch (error) {
     console.error("OAuth callback error:", error);
