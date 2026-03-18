@@ -64,7 +64,7 @@ export function UserProfile({ user }: UserProfileProps) {
         }}
         className="flex items-center gap-3 px-4 py-2 bg-white border border-[#E8E6E1] rounded-xl hover:border-[#6C5CE7] transition-all duration-200"
       >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6C5CE7] to-[#A29BFE] flex items-center justify-center text-white font-medium text-sm">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
           {user.avatarUrl ? (
             <img
               src={user.avatarUrl}
@@ -93,7 +93,7 @@ export function UserProfile({ user }: UserProfileProps) {
           {/* 用户信息 */}
           <div className="p-5 border-b border-[#E8E6E1]">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#6C5CE7] to-[#A29BFE] flex items-center justify-center text-white font-bold text-lg">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center text-white font-bold text-lg shadow-md">
                 {user.avatarUrl ? (
                   <img
                     src={user.avatarUrl}

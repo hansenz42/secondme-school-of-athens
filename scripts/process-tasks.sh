@@ -1,0 +1,1 @@
+curl -H "Authorization: Bearer $CRON_SECRET" https://localhost:3000/api/cron/process-tasks

@@ -1,4 +1,4 @@
-// SecondMe Knowledge Plaza - Prisma Schema
+// SecondMe 雅典学院 - 知识广场 Prisma Schema
 
 generator client {
   provider = "prisma-client-js"
@@ -11,68 +11,119 @@ datasource db {
 
 // 用户表 - 存储 SecondMe OAuth 用户信息
 model User {
-  id              String    @id @default(cuid())
-  secondmeUserId  String    @unique
-  nickname        String?
-  avatarUrl       String?
-  email           String?
-  accessToken     String
-  refreshToken    String
-  tokenExpiresAt  DateTime
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                     String   @id @default(cuid())
+  secondmeUserId         String   @unique
+  nickname               String?
+  avatarUrl              String?
+  email                  String?
+  accessToken            String
+  refreshToken           String
+  tokenExpiresAt         DateTime
+  autoSubscribeNewTopics Boolean  @default(false) // 自动订阅每日新话题
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   // 关联
-  roomParticipants RoomParticipant[]
-  messages          Message[]
+  posts         Post[]
+  subscriptions Subscription[]
+  agentTasks    AgentTask[]
+  reports       Report[]
 
   @@map("users")
 }
 
-// 聊天室/主题房间
-model Room {
-  id          String    @id @default(cuid())
-  title       String    // 聊天室标题/主题
-  description String?   // 聊天室描述
-  status      String    @default("waiting") // waiting: 等待中, active: 进行中, finished: 已结束
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+// 知识广场话题
+model Topic {
+  id          String   @id @default(cuid())
+  title       String // 话题标题
+  content     String? // 话题描述/内容
+  source      String // zhihu: 知乎热词, user_submitted: 用户提交
+  sourceId    String? // 来源 ID（如知乎话题 ID）
+  sourceUrl   String? // 来源链接
+  status      String   @default("active") // active: 活跃, archived: 已归档
+  publishedAt DateTime @default(now()) // 发布时间
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // 关联
-  participants RoomParticipant[]
-  messages     Message[]
+  posts         Post[]
+  subscriptions Subscription[]
+  reports       Report[]
 
-  @@map("rooms")
+  @@unique([source, sourceId]) // 防止重复导入
+  @@map("topics")
 }
 
-// 聊天室参与者
-model RoomParticipant {
-  id        String   @id @default(cuid())
-  role      String   @default("participant") // owner: 创建者, participant: 参与者
-  joinedAt  DateTime @default(now())
+// 帖子/留言
+model Post {
+  id         String @id @default(cuid())
+  content    String // 帖子内容
+  authorType String // user: 用户发布, agent: Agent 发布
 
-  userId    String
-  roomId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  topicId  String
+  authorId String // 作者 ID（用户 ID）
+  parentId String? // 父帖子 ID（回复某帖子时）
 
-  @@unique([userId, roomId])
-  @@map("room_participants")
-}
-
-// 聊天消息
-model Message {
-  id        String   @id @default(cuid())
-  content   String   // 消息内容
-  sender    String   // 发送者: "user" 或 "agent"
-  senderId  String?  // 如果是用户发送，存储 user id；如果是 agent，存储 agent id
-
-  userId    String?
-  roomId    String
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  author  User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Post?  @relation("PostReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies Post[] @relation("PostReplies")
 
   createdAt DateTime @default(now())
 
-  @@map("messages")
+  @@map("posts")
+}
+
+// 用户订阅
+model Subscription {
+  id          String    @id @default(cuid())
+  lastVisitAt DateTime? // 上次访问时间（用于 2 小时冷却）
+
+  userId  String
+  topicId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, topicId])
+  @@map("subscriptions")
+}
+
+// Agent 任务队列
+model AgentTask {
+  id      String  @id @default(cuid())
+  type    String // read_topic: 阅读话题, generate_post: 生成回复, update_report: 更新报告
+  payload Json // 任务参数
+  status  String  @default("pending") // pending: 待处理, processing: 处理中, done: 完成, failed: 失败
+  error   String? // 错误信息
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime  @default(now()) // 计划执行时间
+  completedAt DateTime? // 完成时间
+  createdAt   DateTime  @default(now())
+
+  @@index([status, scheduledAt])
+  @@map("agent_tasks")
+}
+
+// 用户报告
+model Report {
+  id      String @id @default(cuid())
+  content Json // 报告内容: { topic, viewpoints, differences, takeaways }
+  status  String @default("draft") // draft: 草稿, synced: 已同步到 SecondMe
+
+  userId  String
+  topicId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  syncedAt  DateTime? // 同步时间
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([userId, topicId]) // 每用户每话题一份报告
+  @@map("reports")
 }

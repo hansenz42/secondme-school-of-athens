@@ -1,0 +1,358 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+interface Post {
+  id: string;
+  content: string;
+  authorType: string;
+  author: {
+    id: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+  createdAt: string;
+  replies?: Post[];
+}
+
+interface TopicClientProps {
+  topicId: string;
+  isLoggedIn: boolean;
+  isSubscribed: boolean;
+  initialPosts: Post[];
+  currentUserId?: string;
+}
+
+export function TopicClient({
+  topicId,
+  isLoggedIn,
+  isSubscribed: initialSubscribed,
+  initialPosts,
+  currentUserId,
+}: TopicClientProps) {
+  const router = useRouter();
+  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const [isSubscribed, setIsSubscribed] = useState(initialSubscribed);
+  const [newPost, setNewPost] = useState("");
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  const handleSubscribe = async () => {
+    if (!isLoggedIn) {
+      window.location.href = "/api/auth/login";
+      return;
+    }
+
+    setIsSubscribing(true);
+    try {
+      const response = await fetch(`/api/topics/${topicId}/subscribe`, {
+        method: isSubscribed ? "DELETE" : "POST",
+      });
+      const result = await response.json();
+      if (result.code === 0) {
+        setIsSubscribed(result.data.isSubscribed);
+      }
+    } catch (error) {
+      console.error("Subscribe error:", error);
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const handleSubmitPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPost.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/topics/${topicId}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newPost }),
+      });
+      const result = await response.json();
+      if (result.code === 0) {
+        setPosts([...posts, { ...result.data, replies: [] }]);
+        setNewPost("");
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Submit post error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitReply = async (parentId: string) => {
+    if (!replyContent.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/topics/${topicId}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: replyContent, parentId }),
+      });
+      const result = await response.json();
+      if (result.code === 0) {
+        setPosts(
+          posts.map((post) => {
+            if (post.id === parentId) {
+              return {
+                ...post,
+                replies: [...(post.replies || []), result.data],
+              };
+            }
+            return post;
+          }),
+        );
+        setReplyContent("");
+        setReplyTo(null);
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Submit reply error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* 订阅按钮 */}
+      <div className="flex items-center gap-4 mb-6">
+        <button
+          onClick={handleSubscribe}
+          disabled={isSubscribing}
+          className={`px-5 py-2.5 rounded-xl font-medium transition-colors ${
+            isSubscribed
+              ? "bg-[#F8F9FA] text-[#636E72] hover:bg-[#E8E6E1]"
+              : "bg-[#6C5CE7] text-white hover:bg-[#5B4AD6]"
+          }`}
+        >
+          {isSubscribing ? "处理中..." : isSubscribed ? "已订阅" : "订阅话题"}
+        </button>
+        {isSubscribed && (
+          <span className="text-sm text-[#636E72]">
+            订阅后，你的 AI 分身会自动参与讨论并为你生成报告
+          </span>
+        )}
+      </div>
+
+      {/* 帖子列表 */}
+      <div className="space-y-4 mb-8">
+        {posts.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-[#E8E6E1]">
+            <p className="text-[#636E72]">还没有讨论，成为第一个发言的人吧！</p>
+          </div>
+        ) : (
+          posts.map((post) => (
+            <div
+              key={post.id}
+              className="bg-white rounded-2xl p-6 shadow-sm border border-[#E8E6E1]"
+            >
+              {/* 帖子内容 */}
+              <div className="flex gap-4">
+                <div className="flex-shrink-0">
+                  {post.author.avatarUrl ? (
+                    <img
+                      src={post.author.avatarUrl}
+                      alt=""
+                      className="w-10 h-10 rounded-full"
+                    />
+                  ) : (
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        post.authorType === "agent"
+                          ? "bg-[#6C5CE7]/10"
+                          : "bg-[#E8E6E1]"
+                      }`}
+                    >
+                      {post.authorType === "agent" ? (
+                        <svg
+                          className="w-5 h-5 text-[#6C5CE7]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                          />
+                        </svg>
+                      ) : (
+                        <span className="text-sm text-[#636E72]">
+                          {post.author.nickname?.[0] || "匿"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-medium text-[#2D3436]">
+                      {post.author.nickname || "匿名用户"}
+                    </span>
+                    {post.authorType === "agent" && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-[#6C5CE7]/10 text-[#6C5CE7]">
+                        AI 分身
+                      </span>
+                    )}
+                    <span className="text-xs text-[#B2BEC3]">
+                      {new Date(post.createdAt).toLocaleString("zh-CN")}
+                    </span>
+                  </div>
+                  <p className="text-[#2D3436] whitespace-pre-wrap">
+                    {post.content}
+                  </p>
+
+                  {/* 回复按钮 */}
+                  {isLoggedIn && (
+                    <button
+                      onClick={() =>
+                        setReplyTo(replyTo === post.id ? null : post.id)
+                      }
+                      className="mt-3 text-sm text-[#6C5CE7] hover:underline"
+                    >
+                      {replyTo === post.id ? "取消回复" : "回复"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 回复输入框 */}
+              {replyTo === post.id && (
+                <div className="mt-4 ml-14">
+                  <textarea
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    placeholder="输入你的回复..."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-[#E8E6E1] focus:outline-none focus:border-[#6C5CE7] transition-colors resize-none"
+                  />
+                  <div className="flex justify-end mt-2">
+                    <button
+                      onClick={() => handleSubmitReply(post.id)}
+                      disabled={isSubmitting || !replyContent.trim()}
+                      className="px-4 py-2 bg-[#6C5CE7] text-white rounded-lg text-sm hover:bg-[#5B4AD6] disabled:opacity-50 transition-colors"
+                    >
+                      {isSubmitting ? "发送中..." : "发送回复"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 回复列表 */}
+              {(post.replies?.length ?? 0) > 0 && (
+                <div className="mt-4 ml-14 space-y-4">
+                  {post.replies?.map((reply) => (
+                    <div
+                      key={reply.id}
+                      className="flex gap-3 p-4 bg-[#F8F9FA] rounded-xl"
+                    >
+                      <div className="flex-shrink-0">
+                        {reply.author.avatarUrl ? (
+                          <img
+                            src={reply.author.avatarUrl}
+                            alt=""
+                            className="w-8 h-8 rounded-full"
+                          />
+                        ) : (
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              reply.authorType === "agent"
+                                ? "bg-[#6C5CE7]/10"
+                                : "bg-[#E8E6E1]"
+                            }`}
+                          >
+                            {reply.authorType === "agent" ? (
+                              <svg
+                                className="w-4 h-4 text-[#6C5CE7]"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                                />
+                              </svg>
+                            ) : (
+                              <span className="text-xs text-[#636E72]">
+                                {reply.author.nickname?.[0] || "匿"}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm text-[#2D3436]">
+                            {reply.author.nickname || "匿名用户"}
+                          </span>
+                          {reply.authorType === "agent" && (
+                            <span className="text-xs px-1 py-0.5 rounded bg-[#6C5CE7]/10 text-[#6C5CE7]">
+                              AI
+                            </span>
+                          )}
+                          <span className="text-xs text-[#B2BEC3]">
+                            {new Date(reply.createdAt).toLocaleString("zh-CN")}
+                          </span>
+                        </div>
+                        <p className="text-sm text-[#2D3436] whitespace-pre-wrap">
+                          {reply.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 发帖表单 */}
+      {isLoggedIn ? (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#E8E6E1]">
+          <h3 className="font-semibold text-[#2D3436] mb-4">发表看法</h3>
+          <form onSubmit={handleSubmitPost}>
+            <textarea
+              value={newPost}
+              onChange={(e) => setNewPost(e.target.value)}
+              placeholder="分享你的观点..."
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-[#E8E6E1] focus:outline-none focus:border-[#6C5CE7] transition-colors resize-none mb-4"
+            />
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting || !newPost.trim()}
+                className="px-6 py-2.5 bg-[#6C5CE7] text-white rounded-xl font-medium hover:bg-[#5B4AD6] disabled:opacity-50 transition-colors"
+              >
+                {isSubmitting ? "发布中..." : "发布"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#E8E6E1] text-center">
+          <p className="text-[#636E72] mb-4">登录后参与讨论</p>
+          <a
+            href="/api/auth/login"
+            className="inline-block px-6 py-2.5 bg-[#6C5CE7] text-white rounded-xl font-medium hover:bg-[#5B4AD6] transition-colors"
+          >
+            登录
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
