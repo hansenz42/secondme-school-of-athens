@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCodeForToken, getUserInfo, createOrUpdateUser } from "@/lib/auth";
+import {
+  exchangeCodeForToken,
+  getUserInfo,
+  createOrUpdateUser,
+} from "@/lib/auth";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -41,7 +45,8 @@ export async function GET(request: Request) {
     console.log("User info fetched:", userInfo);
 
     // 使用 SecondMe 返回的用户 ID
-    const secondmeUserId = userInfo.user_id || userInfo.id || userInfo.sub;
+    const secondmeUserId =
+      userInfo.userId || userInfo.user_id || userInfo.id || userInfo.sub;
     if (!secondmeUserId) {
       throw new Error("Cannot get user ID from user info");
     }
@@ -51,7 +56,7 @@ export async function GET(request: Request) {
       secondmeUserId,
       tokens.accessToken,
       tokens.refreshToken,
-      tokens.expiresIn
+      tokens.expiresIn,
     );
 
     // 设置用户 session cookie
