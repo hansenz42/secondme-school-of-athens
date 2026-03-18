@@ -4,22 +4,6 @@ import { ChatRoom } from "@/components/ChatRoom";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-async function getUser() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/user/info`, {
-      cache: 'no-store',
-      credentials: 'include',
-    });
-    const data = await res.json();
-    if (data.code === 0) {
-      return data.data;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 async function getRoom(roomId: string) {
   try {
     const room = await prisma.room.findUnique({
@@ -61,9 +45,13 @@ async function getRoom(roomId: string) {
   }
 }
 
-export default async function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
+export default async function RoomPage({
+  params,
+}: {
+  params: Promise<{ roomId: string }>;
+}) {
   const { roomId } = await params;
-  const user = await getUser();
+  const user = await getCurrentUser();
   const room = await getRoom(roomId);
 
   if (!user) {
@@ -84,7 +72,9 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
   }
 
   // 检查用户是否是房间参与者
-  const isParticipant = room.participants.some((p: { user: { id: string } }) => p.user.id === user.id);
+  const isParticipant = room.participants.some(
+    (p: { user: { id: string } }) => p.user.id === user.id,
+  );
 
   if (!isParticipant) {
     // 自动加入房间
