@@ -66,20 +66,24 @@ export default async function ReportsPage() {
     <div className="min-h-screen bg-white">
       <MainHeader user={user} activeTab="reports" reportCount={reportCount} />
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <p className="text-[#636E72]">
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* 标题区域 */}
+        <section className="mb-12">
+          <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-3 tracking-tight">
+            我的报告
+          </h1>
+          <p className="text-lg text-gray-700 max-w-2xl">
             SecondMe 为你整合的知识报告，如果你觉得不错，可以一键加入到 SecondMe
-            知识库。
+            知识库
           </p>
-        </div>
+        </section>
 
         {/* 报告列表 */}
         {serializedReports.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-[#E8E6E1]">
-            <div className="w-16 h-16 rounded-full bg-[#F8F9FA] flex items-center justify-center mx-auto mb-4">
+          <div className="text-center py-16 bg-gray-50 rounded-xl border border-gray-300">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-[#B2BEC3]"
+                className="w-8 h-8 text-gray-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -92,15 +96,13 @@ export default async function ReportsPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-[#2D3436] mb-2">
-              还没有报告
-            </h3>
-            <p className="text-[#636E72] mb-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">还没有报告</h3>
+            <p className="text-gray-700 mb-6">
               订阅知识广场中的话题，你的 AI 分身会为你生成洞察报告
             </p>
             <Link
               href="/"
-              className="inline-block px-6 py-2.5 bg-[#6C5CE7] text-white rounded-xl font-medium hover:bg-[#5B4AD6] transition-colors"
+              className="inline-block px-6 py-2.5 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-700 transition-colors"
             >
               浏览知识广场
             </Link>

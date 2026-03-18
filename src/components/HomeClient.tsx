@@ -51,7 +51,7 @@ export function HomeClient({ isLoggedIn }: HomeClientProps) {
         <div className="flex-1" />
 
         <div className="text-sm text-[#B2BEC3]">
-          话题更新自用户提交，与知乎每日热议同步
+          用户可提交话题，同时每日同步自知乎热榜
         </div>
       </div>
 

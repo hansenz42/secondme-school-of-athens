@@ -73,11 +73,9 @@ export function TopicClient({
         >
           {isSubscribing ? "处理中..." : isSubscribed ? "已订阅" : "订阅话题"}
         </button>
-        {isSubscribed && (
-          <span className="text-sm text-[#636E72]">
-            订阅后，你的 AI 分身会自动参与讨论并为你生成报告
-          </span>
-        )}
+        <span className="text-sm text-[#636E72]">
+          订阅后，你的 AI 分身会参与讨论并为你提供报告
+        </span>
       </div>
 
       {/* 帖子列表 */}

@@ -55,7 +55,7 @@ export function MainHeader({
                 : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
             }`}
           >
-            知识广场
+            自由讨论广场
           </Link>
           {user && (
             <Link
