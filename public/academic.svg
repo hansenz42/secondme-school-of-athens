@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 顶部：代表知识殿堂的经典三角屋顶 -->
+  <path d="M12 3L3 10h18z" />
+  
+  <!-- 中部：四根象征学术基石的学院立柱 -->
+  <path d="M6 10v8m4-8v8m4-8v8m4-8v8" />
+  
+  <!-- 底部：两层坚实的学院基座台阶 -->
+  <path d="M4 18h16M2 21h20" />
+</svg>

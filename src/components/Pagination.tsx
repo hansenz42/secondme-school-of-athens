@@ -3,6 +3,7 @@ import Link from "next/link";
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
+  baseHref?: string; // 基础 URL，默认为 "/"
 }
 
 function getPageNumbers(
@@ -40,12 +41,22 @@ function getPageNumbers(
   ];
 }
 
-export function Pagination({ currentPage, totalPages }: PaginationProps) {
+export function Pagination({
+  currentPage,
+  totalPages,
+  baseHref = "/",
+}: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const pages = getPageNumbers(currentPage, totalPages);
   const isPrevDisabled = currentPage <= 1;
   const isNextDisabled = currentPage >= totalPages;
+
+  // 简单的链接生成函数
+  const href = (page: number) => {
+    const separator = baseHref.includes("?") ? "&" : "?";
+    return `${baseHref}${separator}page=${page}`;
+  };
 
   return (
     <nav
@@ -59,7 +70,7 @@ export function Pagination({ currentPage, totalPages }: PaginationProps) {
         </span>
       ) : (
         <Link
-          href={`/?page=${currentPage - 1}`}
+          href={href(currentPage - 1)}
           className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         >
           ← 上一页
@@ -86,7 +97,7 @@ export function Pagination({ currentPage, totalPages }: PaginationProps) {
         ) : (
           <Link
             key={page}
-            href={`/?page=${page}`}
+            href={href(page as number)}
             className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors min-w-9 text-center"
           >
             {page}

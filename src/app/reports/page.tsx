@@ -70,7 +70,7 @@ export default async function ReportsPage() {
         {/* 标题区域 */}
         <section className="mb-12">
           <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-3 tracking-tight">
-            我的报告
+            Agent 报告
           </h1>
           <p className="text-lg text-gray-700 max-w-2xl">
             SecondMe 为你整合的知识报告，如果你觉得不错，可以一键加入到 SecondMe

@@ -27,17 +27,22 @@ export function MainHeader({
         <Link href="/" className="flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 rounded-lg bg-linear-to-br from-gray-900 to-gray-700 flex items-center justify-center shadow-md">
             <svg
-              className="w-5 h-5 text-white"
+              className="w-6 h-6 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-              />
+              {/* 顶部：代表知识殿堂的经典三角屋顶 */}
+              <path d="M12 3L3 10h18z" />
+
+              {/* 中部：四根象征学术基石的学院立柱 */}
+              <path d="M6 10v8m4-8v8m4-8v8m4-8v8" />
+
+              {/* 底部：两层坚实的学院基座台阶 */}
+              <path d="M4 18h16M2 21h20" />
             </svg>
           </div>
           <span className="text-lg font-bold text-gray-900 tracking-tight">
@@ -66,7 +71,7 @@ export function MainHeader({
                   : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
               }`}
             >
-              我的报告
+              Agent 报告
               {reportCount > 0 && (
                 <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-semibold">
                   {reportCount}

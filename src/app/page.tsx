@@ -78,17 +78,43 @@ export default async function HomePage({
   // 获取用户的报告数量
   let reportCount = 0;
 
+  interface RawSubscription {
+    id: string;
+    userId: string;
+    topicId: string;
+    createdAt: Date;
+    lastVisitAt: Date | null;
+    topic: {
+      id: string;
+      title: string;
+      content: string | null;
+      source: string;
+      sourceId: string | null;
+      publishedAt: Date;
+      _count: {
+        posts: number;
+        subscriptions: number;
+      };
+    };
+  }
+
+  let rawSubs: RawSubscription[] = [];
+
   if (user) {
-    const rawSubs = await prisma.subscription.findMany({
+    rawSubs = await prisma.subscription.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 100,
       include: {
         topic: {
           select: {
             id: true,
             title: true,
-            _count: { select: { posts: true } },
+            content: true,
+            source: true,
+            sourceId: true,
+            publishedAt: true,
+            _count: { select: { posts: true, subscriptions: true } },
           },
         },
       },
@@ -133,6 +159,83 @@ export default async function HomePage({
 
             {/* 操作区 */}
             <HomeClient isLoggedIn={!!user} />
+
+            {/* 我的订阅区域 */}
+            {user && subscriptions.length > 0 && (
+              <section className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">我的订阅</h2>
+                  {subscriptions.length > 6 && (
+                    <a
+                      href="/my-subscriptions"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      查看全部 →
+                    </a>
+                  )}
+                </div>
+
+                {/* 订阅话题卡片 */}
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {rawSubs.slice(0, 6).map((sub) => {
+                    const submitterInfo =
+                      sub.topic.source === "user_submitted" &&
+                      sub.topic.sourceId
+                        ? submitters.find((s) => s.id === sub.topic.sourceId) ||
+                          null
+                        : null;
+                    return (
+                      <TopicCard
+                        key={sub.topic.id}
+                        topic={{
+                          id: sub.topic.id,
+                          title: sub.topic.title,
+                          content: sub.topic.content,
+                          source: sub.topic.source,
+                          postCount: sub.topic._count.posts,
+                          subscriberCount: sub.topic._count.subscriptions,
+                          publishedAt: sub.topic.publishedAt.toISOString(),
+                        }}
+                        isSubscribed={true}
+                        submitter={submitterInfo}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* "我的订阅"空状态 */}
+            {user && subscriptions.length === 0 && (
+              <section className="mb-12">
+                <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-300">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                    <svg
+                      className="w-8 h-8 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    还没有订阅话题
+                  </h3>
+                  <p className="text-gray-700 mb-6">
+                    开始浏览广场中的热门话题，订阅你感兴趣的内容吧！
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* 所有话题区域标题 */}
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">所有话题</h2>
 
             {/* 话题网格 */}
             {topics.length > 0 ? (
