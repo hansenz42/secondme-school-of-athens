@@ -50,28 +50,41 @@ export async function POST(request: Request) {
       },
     });
 
-    // 调用 SecondMe Chat API 让 Agent 回复
+    // 调用 SecondMe Chat API 让 Agent 回复（SSE 流式接口）
     const chatResponse = await fetch(
-      `${process.env.SECONDME_API_BASE_URL}/api/secondme/chat`,
+      `${process.env.SECONDME_API_BASE_URL}/api/secondme/chat/stream`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${user.accessToken}`,
+          "X-App-Id": process.env.SECONDME_CLIENT_ID || "general",
         },
         body: JSON.stringify({
           message: content,
-          room_id: roomId,
+          sessionId: roomId,
         }),
       }
     );
 
-    const chatData = await chatResponse.json();
-
     let agentReply = "";
-    if (chatData.code === 0) {
-      agentReply = chatData.data?.message || chatData.data?.reply || "";
-    } else {
+    if (chatResponse.ok) {
+      const responseText = await chatResponse.text();
+      for (const line of responseText.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed?.choices?.[0]?.delta?.content;
+          if (delta) agentReply += delta;
+        } catch {
+          // ignore non-JSON lines (e.g. session event)
+        }
+      }
+    }
+
+    if (!agentReply) {
       agentReply = "抱歉，我现在无法回复你。";
     }
 
