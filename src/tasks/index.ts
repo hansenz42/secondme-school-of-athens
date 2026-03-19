@@ -8,10 +8,11 @@ import { prisma } from "@/lib/prisma";
 
 export type TaskType =
   | "read_topic" // 阅读话题
-  | "generate_post"; // 生成帖子/回复
+  | "generate_post" // 生成帖子/回复
+  | "generate_wander_summary"; // 生成漫游总结
 
 export interface TaskPayload {
-  topicId: string;
+  topicId?: string; // 话题 ID（generate_wander_summary 不需要）
   postId?: string; // 如果是回复，指向被回复的帖子
   triggeredBy?: string; // 触发者 ID
   wanderSessionId?: string; // 所属的 wander session（可选）
@@ -92,6 +93,7 @@ export async function getPendingTasks(limit: number = 10): Promise<
     userId: string;
     type: string;
     payload: TaskPayload;
+    wanderSessionId: string | null;
   }>
 > {
   const tasks = await prisma.agentTask.findMany({
@@ -116,6 +118,7 @@ export async function getPendingTasks(limit: number = 10): Promise<
     userId: t.userId,
     type: t.type,
     payload: t.payload as TaskPayload,
+    wanderSessionId: t.wanderSessionId,
   }));
 }
 

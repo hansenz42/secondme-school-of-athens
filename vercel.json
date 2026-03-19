@@ -6,14 +6,6 @@
     {
       "path": "/api/cron/fetch-topics",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/process-tasks",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/wander",
-      "schedule": "0 0 * * *"
     }
   ]
 }

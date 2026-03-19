@@ -1,0 +1,36 @@
+name: Cron - Wander
+
+on:
+    schedule:
+        # 每小时触发一次，系统自动选出最久未漫游且超过 6 小时的用户执行
+        - cron: "0 * * * *"
+    workflow_dispatch:
+        inputs:
+            userId:
+                description: "指定用户 ID（留空则自动选择）"
+                required: false
+                default: ""
+
+jobs:
+    wander:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - name: Trigger wander
+              run: |
+                  URL="${{ secrets.VERCEL_URL }}/api/cron/wander"
+                  if [ -n "${{ github.event.inputs.userId }}" ]; then
+                    URL="${URL}?userId=${{ github.event.inputs.userId }}"
+                  fi
+                  echo "Calling: $URL"
+                  response=$(curl -s -w "\n%{http_code}" \
+                    -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+                    "$URL")
+                  body=$(echo "$response" | head -n -1)
+                  status=$(echo "$response" | tail -n 1)
+                  echo "Status: $status"
+                  echo "Body: $body"
+                  if [ "$status" -ne 200 ]; then
+                    echo "Request failed with status $status"
+                    exit 1
+                  fi
