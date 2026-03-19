@@ -395,7 +395,7 @@ export function ReportCard({
                                           />
                                         </svg>
                                       )}
-                                      接受启发
+                                      整合到知识库
                                     </button>
                                   )}
                                 </li>
@@ -447,7 +447,7 @@ export function ReportCard({
                                   />
                                 </svg>
                               )}
-                              全部接受
+                              全部加入
                             </button>
                           </div>
                         )}

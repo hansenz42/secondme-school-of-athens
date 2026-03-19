@@ -99,7 +99,7 @@ export default async function ReportsPage() {
           </h1>
           <p className="text-lg text-gray-700 max-w-2xl">
             你的 SecondMe
-            每次在广场上漫游之后，都会给你生成一则启发报告，如果你感兴趣，你可以将其整合到你的
+            分身结束漫游后，都会给你提交一份启发报告，如果你感兴趣，你可以加入到
             SecondMe 知识库中。
           </p>
           <ReportsCountdown
@@ -127,7 +127,7 @@ export default async function ReportsPage() {
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-2">还没有报告</h3>
             <p className="text-gray-700 mb-6">
-              订阅话题后，等待下次 Agent 漫游完成，即可在此查看认知总结报告
+              订阅话题后，等待下次 SecondMe 漫游完成，即可在此查看认知总结报告
             </p>
             <Link
               href="/"

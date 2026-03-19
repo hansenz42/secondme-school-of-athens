@@ -60,7 +60,7 @@ export function MainHeader({
                 : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
             }`}
           >
-            自由讨论广场
+            自由话题广场
           </Link>
           {user && (
             <Link
