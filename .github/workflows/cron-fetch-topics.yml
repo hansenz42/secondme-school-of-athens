@@ -1,0 +1,27 @@
+name: Cron - Fetch Topics
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  fetch-topics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger fetch topics
+        run: |
+          URL="${{ secrets.VERCEL_URL }}/api/cron/fetch-topics"
+          echo "Calling: $URL"
+          response=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "$URL")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "Status: $status"
+          echo "Body: $body"
+          if [ "$status" -ne 200 ]; then
+            echo "Request failed with status $status"
+            exit 1
+          fi

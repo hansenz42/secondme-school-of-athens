@@ -1,11 +1,5 @@
 {
   "buildCommand": "npx prisma generate && npm run build",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/cron/fetch-topics",
-      "schedule": "0 0 * * *"
-    }
-  ]
+  "framework": "nextjs"
 }
