@@ -30,6 +30,8 @@ model User {
   wanderSessions   WanderSession[]
   wanderSummaries  WanderSummary[]
   acceptedInsights AcceptedInsight[]
+  friends          Friend[]          @relation("UserFriends")
+  isFriendOf       Friend[]          @relation("UserIsFriend")
 
   @@map("users")
 }
@@ -168,4 +170,20 @@ model AcceptedInsight {
   @@unique([summaryId, topicId, insightIndex])
   @@index([userId])
   @@map("accepted_insights")
+}
+
+// 关注关系：用户单向关注其他用户（秘密关注，对方不感知）
+model Friend {
+  id       String @id @default(cuid())
+  userId   String // 关注者
+  friendId String // 被关注者
+
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("UserIsFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@map("friends")
 }

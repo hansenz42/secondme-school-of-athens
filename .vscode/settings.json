@@ -1,3 +1,15 @@
 {
-  "prisma.pinToPrisma6": false
+  "prisma.pinToPrisma6": false,
+  "rest-client.environmentVariables": {
+    "local": {
+      "host": "http://127.0.0.1:3000"
+    },
+    "prod": {
+      "host": "http://10.26.85.247:18082"
+    },
+    "preview": {},
+    "$shared": {
+      "CRON_SECRET": "cdd141bf953bb207cc2b77439957d5dd58a38ff731f6ef546369e05869410b1d"
+    }
+  }
 }

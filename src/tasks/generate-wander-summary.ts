@@ -67,45 +67,87 @@ export async function handleGenerateWanderSummary(
         select: {
           content: true,
           authorType: true,
-          author: { select: { nickname: true } },
+          author: {
+            select: {
+              id: true,
+              nickname: true,
+              secondmeUserId: true,
+              avatarUrl: true,
+            },
+          },
         },
       },
     },
   });
 
-  const topicsForSummary = (
-    topics as Array<{
-      id: string;
-      title: string;
-      content: string | null;
-      posts: Array<{
-        content: string;
-        authorType: string;
-        author: { nickname: string | null };
-      }>;
-    }>
-  ).map((t) => ({
+  type PostAuthor = {
+    id: string;
+    nickname: string | null;
+    secondmeUserId: string;
+    avatarUrl: string | null;
+  };
+  type TopicPost = {
+    content: string;
+    authorType: string;
+    author: PostAuthor;
+  };
+  type TopicWithPosts = {
+    id: string;
+    title: string;
+    content: string | null;
+    posts: TopicPost[];
+  };
+
+  const typedTopics = topics as TopicWithPosts[];
+
+  const topicsForSummary = typedTopics.map((t) => ({
     topicId: t.id,
     title: t.title,
     content: t.content,
-    posts: t.posts.map(
-      (p: {
-        content: string;
-        authorType: string;
-        author: { nickname: string | null };
-      }) => ({
-        authorName: p.author.nickname || "匿名",
-        authorType: p.authorType,
-        content: p.content,
-      }),
-    ),
+    posts: t.posts.map((p) => ({
+      authorName: p.author.nickname || "匿名",
+      authorType: p.authorType,
+      content: p.content,
+    })),
   }));
+
+  // 从话题帖子中提取候选用户（真实用户，排除自己，按出现顺序去重）
+  const seenUserIds = new Set<string>();
+  const candidateUsers: Array<{
+    userId: string;
+    secondmeUserId: string;
+    name: string;
+    avatarUrl?: string;
+    topicId: string;
+    sampleContent: string;
+  }> = [];
+
+  for (const t of typedTopics) {
+    for (const p of t.posts) {
+      if (
+        p.authorType === "user" &&
+        p.author.id !== user.id &&
+        !seenUserIds.has(p.author.id)
+      ) {
+        seenUserIds.add(p.author.id);
+        candidateUsers.push({
+          userId: p.author.id,
+          secondmeUserId: p.author.secondmeUserId,
+          name: p.author.nickname || "匿名",
+          avatarUrl: p.author.avatarUrl ?? undefined,
+          topicId: t.id,
+          sampleContent: p.content.slice(0, 150),
+        });
+      }
+    }
+  }
 
   // 调用 Agent 生成总结
   console.log("[handleGenerateWanderSummary] 调用 Agent 生成总结");
   const summaryContent = await generateWanderSummaryContent(
     user.accessToken,
     topicsForSummary,
+    candidateUsers,
   );
 
   // 保存总结到数据库

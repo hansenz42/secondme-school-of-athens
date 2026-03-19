@@ -490,16 +490,27 @@ export interface WanderTopicSummary {
   reason: string; // 建议或不建议的理由
 }
 
+export interface RecommendedUser {
+  userId: string; // 本地 User.id
+  secondmeUserId: string;
+  name: string;
+  avatarUrl?: string;
+  reason: string; // ≤20字 推荐理由
+  topicId: string; // 在哪个话题中发现的
+}
+
 export interface WanderSummaryContent {
   topics: WanderTopicSummary[];
   overallTakeaways: string[]; // 本次 wander 对用户认知提升的总体建议
   generatedAt: string;
+  recommendedUsers?: RecommendedUser[]; // 本次漫游发现的有趣用户
   [key: string]: unknown; // Required for Prisma JSON compatibility
 }
 
 /**
  * 生成 wander 总结内容
  * Agent 结合自身知识库，对本次 wander 的话题逐一提炼启发，并给出认知提升建议
+ * 同时从话题讨论者中识别值得关注的有趣用户
  */
 export async function generateWanderSummaryContent(
   accessToken: string,
@@ -509,9 +520,18 @@ export async function generateWanderSummaryContent(
     content: string | null;
     posts: Array<{ authorName: string; authorType: string; content: string }>;
   }>,
+  candidateUsers?: Array<{
+    userId: string;
+    secondmeUserId: string;
+    name: string;
+    avatarUrl?: string;
+    topicId: string;
+    sampleContent: string;
+  }>,
 ): Promise<WanderSummaryContent> {
   console.log("[generateWanderSummaryContent] 开始生成 wander 总结", {
     topicsCount: topics.length,
+    candidateUsersCount: candidateUsers?.length ?? 0,
   });
 
   const topicsText = topics
@@ -532,6 +552,27 @@ topicId: ${t.topicId}`;
 
   const topicIdList = topics.map((t) => t.topicId).join('", "');
 
+  // 候选用户信息（若有）
+  const candidateUsersText =
+    candidateUsers && candidateUsers.length > 0
+      ? `\n\n本次讨论中的真实用户（可供推荐给关注）：\n${candidateUsers
+          .map(
+            (u) =>
+              `  [userId: ${u.userId}] ${u.name}（来自话题 topicId: ${u.topicId}）：${u.sampleContent.slice(0, 120)}`,
+          )
+          .join("\n")}`
+      : "";
+
+  const recommendedUsersSchema =
+    candidateUsers && candidateUsers.length > 0
+      ? `,\n  "recommendedUsers": [\n    {\n      "userId": "候选用户的 userId",\n      "reason": "推荐理由（20字以内）"\n    }\n  ]`
+      : `,\n  "recommendedUsers": []`;
+
+  const candidateUserIds =
+    candidateUsers && candidateUsers.length > 0
+      ? `\n候选用户 userId 列表：[${candidateUsers.map((u) => `"${u.userId}"`).join(", ")}]`
+      : "";
+
   const actionControl = `仅输出合法 JSON 对象，不要解释，不要使用 markdown 代码块。
 输出结构：
 {
@@ -544,19 +585,21 @@ topicId: ${t.topicId}`;
       "reason": "原因（20字以内）"
     }
   ],
-  "overallTakeaways": ["建议1", "建议2", "建议3"]
+  "overallTakeaways": ["建议1", "建议2", "建议3"]${recommendedUsersSchema}
 }
 
 重要约束（防止输出过长）：
 - insights 每个话题仅输出 1~2 条，每条不超过 30 字
 - reason 不超过 20 字
 - overallTakeaways 仅输出 2~3 条，每条不超过 40 字
+- recommendedUsers 最多推荐 3 人，观点深刻、令人印象深刻的真实用户；无合适人选时返回空数组 []
+- recommendedUsers 中的 userId 必须来自候选列表，不得编造${candidateUserIds}
 
 话题 ID 必须从此列表中取值：["${topicIdList}"]
 
 你是一个知识型 AI 分身，刚刚完成了一次「漫游」。请基于你自身的知识库，对以下话题逐一进行简洁分析：
 
-${topicsText}
+${topicsText}${candidateUsersText}
 
 对每个话题请做到：
 1. 提炼 1~2 条简洁启发（不超过 30 字/条）
@@ -591,6 +634,7 @@ ${topicsText}
         reason: "分析服务暂时不可用",
       })),
       overallTakeaways: ["本次漫游总结生成失败，请稍后重试"],
+      recommendedUsers: [],
       generatedAt: new Date().toISOString(),
     };
   }
@@ -611,20 +655,45 @@ ${topicsText}
     }
   }
 
+  // 构建候选用户 Map 方便快速查找
+  const candidateMap = new Map(candidateUsers?.map((u) => [u.userId, u]) ?? []);
+
   try {
     const result = JSON.parse(stripCodeBlock(content));
+
+    // 解析并补全 recommendedUsers
+    const rawRecommended = Array.isArray(result.recommendedUsers)
+      ? result.recommendedUsers
+      : [];
+    const recommendedUsers: RecommendedUser[] = rawRecommended
+      .filter(
+        (r: { userId?: string }) => r.userId && candidateMap.has(r.userId),
+      )
+      .map((r: { userId: string; reason?: string }) => {
+        const candidate = candidateMap.get(r.userId)!;
+        return {
+          userId: candidate.userId,
+          secondmeUserId: candidate.secondmeUserId,
+          name: candidate.name,
+          avatarUrl: candidate.avatarUrl,
+          reason: r.reason ?? "",
+          topicId: candidate.topicId,
+        };
+      });
 
     const summary: WanderSummaryContent = {
       topics: Array.isArray(result.topics) ? result.topics : [],
       overallTakeaways: Array.isArray(result.overallTakeaways)
         ? result.overallTakeaways
         : [],
+      recommendedUsers,
       generatedAt: new Date().toISOString(),
     };
 
     console.log("[generateWanderSummaryContent] 总结生成完毕", {
       topicsCount: summary.topics.length,
       overallTakeawaysCount: summary.overallTakeaways.length,
+      recommendedUsersCount: summary.recommendedUsers?.length ?? 0,
     });
 
     return summary;
@@ -643,6 +712,7 @@ ${topicsText}
         reason: "内容解析失败",
       })),
       overallTakeaways: ["本次漫游总结解析失败，请稍后重试"],
+      recommendedUsers: [],
       generatedAt: new Date().toISOString(),
     };
   }

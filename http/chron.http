@@ -12,5 +12,5 @@ Authorization: Bearer {{CRON_SECRET}}
 
 ### 漫游
 # @name wander-cron
-GET {{host}}/api/cron/wander
+GET {{host}}/api/cron/wander?userId=cmmwyfbz50000ej1ot7t8r6bc
 Authorization: Bearer {{CRON_SECRET}}

@@ -81,6 +81,23 @@ export default async function TopicPage({ params }: PageProps) {
     isSubscribed = !!subscription;
   }
 
+  // 查询订阅者列表（最多显示 50 人）
+  const subscriptions = await prisma.subscription.findMany({
+    where: { topicId },
+    take: 50,
+    orderBy: { createdAt: "asc" },
+    include: {
+      user: {
+        select: { id: true, nickname: true, avatarUrl: true },
+      },
+    },
+  });
+  const subscribers = subscriptions.map((s) => ({
+    id: s.user.id,
+    nickname: s.user.nickname,
+    avatarUrl: s.user.avatarUrl,
+  }));
+
   const serializedTopic = {
     id: topic.id,
     title: topic.title,
@@ -290,6 +307,7 @@ export default async function TopicPage({ params }: PageProps) {
           initialPosts={serializedPosts}
           currentUserId={user?.id}
           topic={serializedTopic}
+          subscribers={subscribers}
         />
       </main>
     </div>

@@ -72,14 +72,14 @@ export function ReportsCountdown({ lastWanderedAt }: ReportsCountdownProps) {
           <circle cx="12" cy="12" r="10" />
           <path strokeLinecap="round" d="M12 6v6l4 2" />
         </svg>
-        <span className="text-sm text-gray-500">下次漫游预计在</span>
+        <span className="text-sm text-gray-500">下次启发预计在</span>
         <span className="font-mono text-sm font-semibold text-gray-800 tabular-nums">
           {formatDuration(remaining)}
         </span>
         <span className="text-sm text-gray-500">后</span>
         {isExpired && (
           <span className="text-xs text-orange-500 font-medium ml-1">
-            （漫游可能正在进行中）
+            （正在启发中）
           </span>
         )}
       </div>

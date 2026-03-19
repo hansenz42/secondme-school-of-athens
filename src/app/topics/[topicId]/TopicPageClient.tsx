@@ -27,6 +27,12 @@ interface TopicData {
   publishedAt: string;
 }
 
+interface Subscriber {
+  id: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
 interface TopicPageClientProps {
   topicId: string;
   isLoggedIn: boolean;
@@ -34,6 +40,7 @@ interface TopicPageClientProps {
   initialPosts: Post[];
   currentUserId?: string;
   topic: TopicData;
+  subscribers: Subscriber[];
 }
 
 export function TopicPageClient({
@@ -43,6 +50,7 @@ export function TopicPageClient({
   initialPosts,
   currentUserId,
   topic,
+  subscribers,
 }: TopicPageClientProps) {
   return (
     <SubscriptionsProvider
@@ -76,6 +84,7 @@ export function TopicPageClient({
         topic={topic}
         initialPosts={initialPosts}
         currentUserId={currentUserId}
+        subscribers={subscribers}
       />
     </SubscriptionsProvider>
   );

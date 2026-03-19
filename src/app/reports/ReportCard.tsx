@@ -11,10 +11,20 @@ interface WanderTopicSummary {
   reason: string;
 }
 
+interface RecommendedUser {
+  userId: string;
+  secondmeUserId: string;
+  name: string;
+  avatarUrl?: string;
+  reason: string;
+  topicId: string;
+}
+
 interface WanderSummaryContent {
   topics: WanderTopicSummary[];
   overallTakeaways: string[];
   generatedAt: string;
+  recommendedUsers?: RecommendedUser[];
 }
 
 interface WanderSummaryCardProps {
@@ -28,6 +38,8 @@ interface WanderSummaryCardProps {
   };
   /** Set of already-accepted insight keys: "${topicId}_${insightIndex}" */
   initialAccepted: Set<string>;
+  /** IDs of users already followed by current user */
+  friendIds: string[];
 }
 
 function insightKey(topicId: string, insightIndex: number) {
@@ -37,12 +49,18 @@ function insightKey(topicId: string, insightIndex: number) {
 export function ReportCard({
   summary,
   initialAccepted,
+  friendIds,
 }: WanderSummaryCardProps) {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [accepted, setAccepted] = useState<Set<string>>(
     new Set(initialAccepted),
   );
   const [loading, setLoading] = useState<Set<string>>(new Set());
+  // Track followed users (start from server-provided friendIds)
+  const [followedIds, setFollowedIds] = useState<Set<string>>(
+    new Set(friendIds),
+  );
+  const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
 
   const toggleTopic = (topicId: string) => {
     setExpandedTopics((prev) => {
@@ -108,6 +126,28 @@ export function ReportCard({
   const recommendedCount =
     summary.content.topics?.filter((t) => t.recommended).length ?? 0;
 
+  const followUser = async (userId: string) => {
+    if (followedIds.has(userId) || followLoading.has(userId)) return;
+    setFollowLoading((prev) => new Set(prev).add(userId));
+    try {
+      const res = await fetch("/api/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendId: userId }),
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        setFollowedIds((prev) => new Set(prev).add(userId));
+      }
+    } finally {
+      setFollowLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+  };
+
   const totalInsights =
     summary.content.topics?.reduce(
       (sum, t) => sum + (t.insights?.length ?? 0),
@@ -131,7 +171,7 @@ export function ReportCard({
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">
-                漫游报告
+                启发报告
               </span>
               <span className="text-xs text-[#B2BEC3]">
                 {wanderedDate.toLocaleString("zh-CN", {
@@ -426,6 +466,126 @@ export function ReportCard({
           </div>
         )}
       </div>
+
+      {/* 本次漫游认识的有趣用户 */}
+      {(summary.content.recommendedUsers?.length ?? 0) > 0 && (
+        <div className="px-6 pb-6 border-t border-[#E8E6E1] pt-5">
+          <h4 className="text-sm font-semibold text-[#2D3436] mb-3 flex items-center gap-2">
+            <svg
+              className="w-4 h-4 text-indigo-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            本次漫游认识的有趣用户
+          </h4>
+          <div className="space-y-3">
+            {summary.content.recommendedUsers!.map((ru) => {
+              const isFollowed = followedIds.has(ru.userId);
+              const isLoading = followLoading.has(ru.userId);
+              return (
+                <div
+                  key={ru.userId}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100"
+                >
+                  {/* 头像 */}
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center text-white font-semibold text-sm shrink-0 overflow-hidden">
+                    {ru.avatarUrl ? (
+                      <img
+                        src={ru.avatarUrl}
+                        alt={ru.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      ru.name.charAt(0)
+                    )}
+                  </div>
+                  {/* 信息 */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#2D3436] truncate">
+                      {ru.name}
+                    </p>
+                    {ru.reason && (
+                      <p className="text-xs text-[#636E72] truncate">
+                        {ru.reason}
+                      </p>
+                    )}
+                  </div>
+                  {/* 关注按钮 */}
+                  {isFollowed ? (
+                    <span className="shrink-0 flex items-center gap-1 text-xs text-emerald-600 font-medium px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      已关注
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => followUser(ru.userId)}
+                      disabled={isLoading}
+                      className="shrink-0 flex items-center gap-1 text-xs text-indigo-600 font-medium px-3 py-1.5 bg-indigo-50 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? (
+                        <svg
+                          className="w-3 h-3 animate-spin"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          className="w-3 h-3"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                      )}
+                      添加好友
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

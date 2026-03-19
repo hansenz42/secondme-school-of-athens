@@ -15,7 +15,7 @@ export default async function ReportsPage() {
     redirect("/api/auth/login");
   }
 
-  const [summaries, fullUser] = await Promise.all([
+  const [summaries, fullUser, friendRecords] = await Promise.all([
     prisma.wanderSummary.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -31,6 +31,10 @@ export default async function ReportsPage() {
     prisma.user.findUnique({
       where: { id: user.id },
       select: { lastReadReportsAt: true },
+    }),
+    prisma.friend.findMany({
+      where: { userId: user.id },
+      select: { friendId: true },
     }),
   ]);
 
@@ -61,6 +65,10 @@ export default async function ReportsPage() {
     ).map((a) => `${a.summaryId}:${a.topicId}_${a.insightIndex}`),
   );
 
+  const friendIds = (friendRecords as Array<{ friendId: string }>).map(
+    (f) => f.friendId,
+  );
+
   const serializedSummaries = (
     summaries as Array<{
       id: string;
@@ -87,10 +95,12 @@ export default async function ReportsPage() {
         {/* 标题区域 */}
         <section className="mb-12">
           <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-3 tracking-tight">
-            漫游报告
+            启发报告
           </h1>
           <p className="text-lg text-gray-700 max-w-2xl">
-            每次漫游后，你的 SecondMe 会结合自身知识库，为你提炼认知升级要点
+            你的 SecondMe
+            每次在广场上漫游之后，都会给你生成一则启发报告，如果你感兴趣，你可以将其整合到你的
+            SecondMe 知识库中。
           </p>
           <ReportsCountdown
             lastWanderedAt={serializedSummaries[0]?.wanderedAt ?? null}
@@ -115,9 +125,7 @@ export default async function ReportsPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              还没有漫游报告
-            </h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">还没有报告</h3>
             <p className="text-gray-700 mb-6">
               订阅话题后，等待下次 Agent 漫游完成，即可在此查看认知总结报告
             </p>
@@ -125,7 +133,7 @@ export default async function ReportsPage() {
               href="/"
               className="inline-block px-6 py-2.5 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-700 transition-colors"
             >
-              浏览知识广场
+              去知识广场订阅话题
             </Link>
           </div>
         ) : (
@@ -142,6 +150,7 @@ export default async function ReportsPage() {
                         .map((k) => k.slice(summary.id.length + 1)),
                     )
                   }
+                  friendIds={friendIds}
                 />
               ),
             )}

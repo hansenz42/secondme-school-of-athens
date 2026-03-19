@@ -18,12 +18,19 @@ interface Post {
   replies?: Post[];
 }
 
+interface Subscriber {
+  id: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
 interface TopicClientProps {
   topicId: string;
   isLoggedIn: boolean;
   isSubscribed: boolean;
   initialPosts: Post[];
   currentUserId?: string;
+  subscribers: Subscriber[];
   topic: {
     id: string;
     title: string;
@@ -44,6 +51,7 @@ export function TopicClient({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentUserId: _currentUserId,
   topic,
+  subscribers,
 }: TopicClientProps) {
   const { subscribe, unsubscribe } = useSubscriptions();
   const router = useRouter();
@@ -255,6 +263,41 @@ export function TopicClient({
           ))
         )}
       </div>
+
+      {/* 订阅者列表 */}
+      {subscribers.length > 0 && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#E8E6E1]">
+          <h3 className="text-sm font-semibold text-[#2D3436] mb-4">
+            订阅此话题的人
+            <span className="ml-2 text-xs font-normal text-[#B2BEC3]">
+              {subscribers.length} 人
+            </span>
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            {subscribers.map((sub) => (
+              <div
+                key={sub.id}
+                className="group relative flex flex-col items-center gap-1"
+              >
+                {sub.avatarUrl ? (
+                  <img
+                    src={sub.avatarUrl}
+                    alt={sub.nickname || "用户"}
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#6C5CE7]/30 transition-all"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#EDE9FF] flex items-center justify-center text-sm font-semibold text-[#6C5CE7] ring-2 ring-transparent group-hover:ring-[#6C5CE7]/30 transition-all">
+                    {(sub.nickname || "匿").charAt(0)}
+                  </div>
+                )}
+                <span className="text-[10px] text-[#B2BEC3] max-w-12 truncate text-center">
+                  {sub.nickname || "匿名"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

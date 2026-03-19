@@ -71,7 +71,7 @@ export function MainHeader({
                   : "text-gray-500 hover:text-gray-700 border-b-2 border-transparent"
               }`}
             >
-              漫游报告
+              启发报告
               {reportCount > 0 && (
                 <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-semibold">
                   {reportCount}
