@@ -26,10 +26,23 @@ interface WanderSummaryCardProps {
     wanderedAt: string;
     createdAt: string;
   };
+  /** Set of already-accepted insight keys: "${topicId}_${insightIndex}" */
+  initialAccepted: Set<string>;
 }
 
-export function ReportCard({ summary }: WanderSummaryCardProps) {
+function insightKey(topicId: string, insightIndex: number) {
+  return `${topicId}_${insightIndex}`;
+}
+
+export function ReportCard({
+  summary,
+  initialAccepted,
+}: WanderSummaryCardProps) {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+  const [accepted, setAccepted] = useState<Set<string>>(
+    new Set(initialAccepted),
+  );
+  const [loading, setLoading] = useState<Set<string>>(new Set());
 
   const toggleTopic = (topicId: string) => {
     setExpandedTopics((prev) => {
@@ -40,9 +53,75 @@ export function ReportCard({ summary }: WanderSummaryCardProps) {
     });
   };
 
+  const acceptInsight = async (
+    topicId: string,
+    topicTitle: string,
+    insight: string,
+    insightIndex: number,
+  ) => {
+    const key = insightKey(topicId, insightIndex);
+    if (accepted.has(key) || loading.has(key)) return;
+
+    setLoading((prev) => new Set(prev).add(key));
+
+    try {
+      const res = await fetch("/api/reports/accept-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summaryId: summary.id,
+          topicId,
+          topicTitle,
+          insight,
+          insightIndex,
+        }),
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        setAccepted((prev) => new Set(prev).add(key));
+      }
+    } finally {
+      setLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  const acceptAllInsights = async (topic: WanderTopicSummary) => {
+    await Promise.all(
+      topic.insights
+        .map((insight, i) => ({
+          insight,
+          i,
+          key: insightKey(topic.topicId, i),
+        }))
+        .filter(({ key }) => !accepted.has(key) && !loading.has(key))
+        .map(({ insight, i }) =>
+          acceptInsight(topic.topicId, topic.title, insight, i),
+        ),
+    );
+  };
+
   const wanderedDate = new Date(summary.wanderedAt);
   const recommendedCount =
     summary.content.topics?.filter((t) => t.recommended).length ?? 0;
+
+  const totalInsights =
+    summary.content.topics?.reduce(
+      (sum, t) => sum + (t.insights?.length ?? 0),
+      0,
+    ) ?? 0;
+  // acceptedCount is derived from reactive `accepted` state so it updates in real-time
+  const acceptedInsightsCount =
+    summary.content.topics?.reduce(
+      (sum, t) =>
+        sum +
+        (t.insights?.filter((_, i) => accepted.has(insightKey(t.topicId, i)))
+          .length ?? 0),
+      0,
+    ) ?? 0;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-[#E8E6E1] overflow-hidden">
@@ -71,6 +150,20 @@ export function ReportCard({ summary }: WanderSummaryCardProps) {
                 </span>
               )}
             </h3>
+            {totalInsights > 0 && (
+              <p className="text-xs text-[#B2BEC3] mt-1.5">
+                共 {totalInsights} 条启发
+                {acceptedInsightsCount > 0 ? (
+                  <span className="text-emerald-500 ml-1">
+                    · 已接受 {acceptedInsightsCount} 条
+                  </span>
+                ) : (
+                  <span className="text-indigo-400 ml-1">
+                    · 展开话题可逐条接受
+                  </span>
+                )}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -116,63 +209,219 @@ export function ReportCard({ summary }: WanderSummaryCardProps) {
               话题启发
             </h4>
             <div className="space-y-3">
-              {summary.content.topics.map((topic) => (
-                <div
-                  key={topic.topicId}
-                  className={`rounded-xl border p-4 transition-colors ${
-                    topic.recommended
-                      ? "border-indigo-200 bg-indigo-50/50"
-                      : "border-gray-200 bg-gray-50/50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {topic.recommended && (
-                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold">
-                          推荐
-                        </span>
-                      )}
-                      <Link
-                        href={`/topics/${topic.topicId}`}
-                        className="text-sm font-semibold text-[#2D3436] hover:text-indigo-600 transition-colors truncate"
-                      >
-                        {topic.title}
-                      </Link>
-                    </div>
-                    <button
-                      onClick={() => toggleTopic(topic.topicId)}
-                      className="shrink-0 text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
-                    >
-                      {expandedTopics.has(topic.topicId) ? "收起" : "展开"}
-                    </button>
-                  </div>
+              {summary.content.topics.map((topic) => {
+                const allAccepted =
+                  topic.insights?.length > 0 &&
+                  topic.insights.every((_, i) =>
+                    accepted.has(insightKey(topic.topicId, i)),
+                  );
+                const someLoading = topic.insights?.some((_, i) =>
+                  loading.has(insightKey(topic.topicId, i)),
+                );
 
-                  {expandedTopics.has(topic.topicId) && (
-                    <div className="mt-3 space-y-3">
-                      {topic.insights?.length > 0 && (
-                        <ul className="space-y-1.5">
-                          {topic.insights.map((insight, i) => (
-                            <li
-                              key={i}
-                              className="flex items-start gap-2 text-xs text-[#636E72]"
-                            >
-                              <span className="text-indigo-400 mt-0.5 shrink-0">
-                                •
+                return (
+                  <div
+                    key={topic.topicId}
+                    className={`rounded-xl border p-4 transition-colors ${
+                      topic.recommended
+                        ? "border-indigo-200 bg-indigo-50/50"
+                        : "border-gray-200 bg-gray-50/50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {topic.recommended && (
+                          <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold">
+                            推荐
+                          </span>
+                        )}
+                        <Link
+                          href={`/topics/${topic.topicId}`}
+                          className="text-sm font-semibold text-[#2D3436] hover:text-indigo-600 transition-colors truncate"
+                        >
+                          {topic.title}
+                        </Link>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        {topic.insights?.length > 0 &&
+                          (() => {
+                            const topicAccepted = topic.insights.filter(
+                              (_, i) =>
+                                accepted.has(insightKey(topic.topicId, i)),
+                            ).length;
+                            const topicTotal = topic.insights.length;
+                            return (
+                              <span className="text-xs text-[#B2BEC3]">
+                                {topicAccepted > 0 ? (
+                                  <span className="text-emerald-500">
+                                    {topicAccepted}
+                                  </span>
+                                ) : (
+                                  <span>0</span>
+                                )}
+                                /{topicTotal} 条启发
                               </span>
-                              <span>{insight}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {topic.reason && (
-                        <p className="text-xs text-[#B2BEC3] italic border-t border-gray-100 pt-2">
-                          {topic.reason}
-                        </p>
-                      )}
+                            );
+                          })()}
+                        <button
+                          onClick={() => toggleTopic(topic.topicId)}
+                          className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
+                        >
+                          {expandedTopics.has(topic.topicId) ? "收起" : "展开"}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {expandedTopics.has(topic.topicId) && (
+                      <div className="mt-3 space-y-3">
+                        {topic.insights?.length > 0 && (
+                          <ul className="space-y-2">
+                            {topic.insights.map((insight, i) => {
+                              const key = insightKey(topic.topicId, i);
+                              const isAccepted = accepted.has(key);
+                              const isLoading = loading.has(key);
+
+                              return (
+                                <li
+                                  key={i}
+                                  className="flex items-start gap-2 text-xs text-[#636E72]"
+                                >
+                                  <span className="text-indigo-400 mt-0.5 shrink-0">
+                                    •
+                                  </span>
+                                  <span className="flex-1">{insight}</span>
+                                  {isAccepted ? (
+                                    <span className="shrink-0 flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                                      <svg
+                                        className="w-3 h-3"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth={2.5}
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M5 13l4 4L19 7"
+                                        />
+                                      </svg>
+                                      已接受
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() =>
+                                        acceptInsight(
+                                          topic.topicId,
+                                          topic.title,
+                                          insight,
+                                          i,
+                                        )
+                                      }
+                                      disabled={isLoading}
+                                      className="shrink-0 flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {isLoading ? (
+                                        <svg
+                                          className="w-3 h-3 animate-spin"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                          />
+                                          <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                          />
+                                        </svg>
+                                      ) : (
+                                        <svg
+                                          className="w-3 h-3"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                          strokeWidth={2}
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M12 4v16m8-8H4"
+                                          />
+                                        </svg>
+                                      )}
+                                      接受启发
+                                    </button>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+
+                        {/* 全部接受按钮 */}
+                        {topic.insights?.length > 1 && !allAccepted && (
+                          <div className="pt-2 border-t border-gray-100 flex justify-end">
+                            <button
+                              onClick={() => acceptAllInsights(topic)}
+                              disabled={someLoading}
+                              className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                              {someLoading ? (
+                                <svg
+                                  className="w-3 h-3 animate-spin"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  />
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                  />
+                                </svg>
+                              ) : (
+                                <svg
+                                  className="w-3 h-3"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                  />
+                                </svg>
+                              )}
+                              全部接受
+                            </button>
+                          </div>
+                        )}
+
+                        {topic.reason && (
+                          <p className="text-xs text-[#B2BEC3] italic border-t border-gray-100 pt-2">
+                            {topic.reason}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

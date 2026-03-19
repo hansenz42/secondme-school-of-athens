@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { useSubscriptions } from "@/lib/SubscriptionsContext";
 
 interface Post {
   id: string;
@@ -22,6 +24,16 @@ interface TopicClientProps {
   isSubscribed: boolean;
   initialPosts: Post[];
   currentUserId?: string;
+  topic: {
+    id: string;
+    title: string;
+    content: string | null;
+    source: string;
+    sourceId: string | null;
+    postCount: number;
+    subscriberCount: number;
+    publishedAt: string;
+  };
 }
 
 export function TopicClient({
@@ -31,7 +43,10 @@ export function TopicClient({
   initialPosts,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentUserId: _currentUserId,
+  topic,
 }: TopicClientProps) {
+  const { subscribe, unsubscribe } = useSubscriptions();
+  const router = useRouter();
   const [posts] = useState<Post[]>(initialPosts);
   const [isSubscribed, setIsSubscribed] = useState(initialSubscribed);
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -49,7 +64,25 @@ export function TopicClient({
       });
       const result = await response.json();
       if (result.code === 0) {
-        setIsSubscribed(result.data.isSubscribed);
+        const newSubscribedState = result.data.isSubscribed;
+        setIsSubscribed(newSubscribedState);
+
+        // 同步到全局状态
+        if (newSubscribedState) {
+          subscribe(topicId, {
+            id: topic.id,
+            title: topic.title,
+            content: topic.content,
+            source: topic.source,
+            sourceId: topic.sourceId,
+            postCount: topic.postCount,
+            subscriberCount: topic.subscriberCount + 1,
+            publishedAt: topic.publishedAt,
+          });
+        } else {
+          unsubscribe(topicId);
+        }
+        router.refresh();
       }
     } catch (error) {
       console.error("Subscribe error:", error);
@@ -92,7 +125,7 @@ export function TopicClient({
             >
               {/* 帖子内容 */}
               <div className="flex gap-4">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   {post.author.avatarUrl ? (
                     <img
                       src={post.author.avatarUrl}
@@ -158,7 +191,7 @@ export function TopicClient({
                       key={reply.id}
                       className="flex gap-3 p-4 bg-[#F8F9FA] rounded-xl"
                     >
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         {reply.author.avatarUrl ? (
                           <img
                             src={reply.author.avatarUrl}

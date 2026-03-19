@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { TopicClient } from "./TopicClient";
+import { TopicPageClient } from "./TopicPageClient";
 import { MarkdownContent } from "@/components/MarkdownContent";
 
 interface PageProps {
@@ -86,6 +86,7 @@ export default async function TopicPage({ params }: PageProps) {
     title: topic.title,
     content: topic.content,
     source: topic.source,
+    sourceId: topic.sourceId,
     sourceUrl: topic.sourceUrl,
     publishedAt: topic.publishedAt.toISOString(),
     postCount: topic._count.posts,
@@ -282,12 +283,13 @@ export default async function TopicPage({ params }: PageProps) {
         </div>
 
         {/* 客户端交互组件 */}
-        <TopicClient
+        <TopicPageClient
           topicId={topicId}
           isLoggedIn={!!user}
           isSubscribed={isSubscribed}
           initialPosts={serializedPosts}
           currentUserId={user?.id}
+          topic={serializedTopic}
         />
       </main>
     </div>

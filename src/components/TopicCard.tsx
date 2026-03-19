@@ -2,6 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSubscriptions } from "@/lib/SubscriptionsContext";
 
 interface Submitter {
   id: string;
@@ -26,10 +29,51 @@ interface TopicCardProps {
 
 export function TopicCard({
   topic,
-  isSubscribed,
+  isSubscribed: initialIsSubscribed,
   unreadCount = 0,
   submitter,
 }: TopicCardProps) {
+  const { subscribe } = useSubscriptions();
+  const router = useRouter();
+  const [isSubscribed, setIsSubscribed] = useState(!!initialIsSubscribed);
+  const [subscriberCount, setSubscriberCount] = useState(topic.subscriberCount);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  async function handleSubscribe(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isSubscribing || isSubscribed) return;
+
+    setIsSubscribing(true);
+    try {
+      const res = await fetch(`/api/topics/${topic.id}/subscribe`, {
+        method: "POST",
+      });
+      if (res.status === 401) {
+        window.location.href = "/api/auth/login";
+        return;
+      }
+      const data = await res.json();
+      if (data.code === 0 && data.data?.isSubscribed) {
+        setIsSubscribed(true);
+        setSubscriberCount((c) => c + 1);
+        // 触发全局订阅更新 + 同步服务端数据
+        subscribe(topic.id, {
+          id: topic.id,
+          title: topic.title,
+          content: topic.content ?? null,
+          source: topic.source,
+          sourceId: null,
+          postCount: topic.postCount,
+          subscriberCount: subscriberCount + 1,
+          publishedAt: topic.publishedAt,
+        });
+        router.refresh();
+      }
+    } finally {
+      setIsSubscribing(false);
+    }
+  }
   const sourceLabel = topic.source === "zhihu" ? "知乎热议" : "用户提交";
   const sourceColor =
     topic.source === "zhihu"
@@ -47,7 +91,7 @@ export function TopicCard({
       >
         {/* unread badge */}
         {isSubscribed && unreadCount > 0 && (
-          <span className="absolute top-3 right-3 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-orange-500 text-white text-[10px] font-bold shadow-sm">
+          <span className="absolute top-3 right-3 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-orange-500 text-white text-[10px] font-bold shadow-sm">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -78,10 +122,10 @@ export function TopicCard({
                   <img
                     src={submitter.avatarUrl}
                     alt={submitter.nickname || "用户"}
-                    className="w-[18px] h-[18px] rounded-full object-cover"
+                    className="w-4.5 h-4.5 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-[18px] h-[18px] rounded-full bg-purple-200 flex items-center justify-center text-[10px] text-purple-700 font-semibold">
+                  <div className="w-4.5 h-4.5 rounded-full bg-purple-200 flex items-center justify-center text-[10px] text-purple-700 font-semibold">
                     {(submitter.nickname || "匿").charAt(0)}
                   </div>
                 )}
@@ -94,7 +138,7 @@ export function TopicCard({
               {new Date(topic.publishedAt).toLocaleDateString("zh-CN")}
             </span>
           </div>
-          {isSubscribed && (
+          {isSubscribed ? (
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
               <svg
                 className="w-3 h-3"
@@ -111,11 +155,54 @@ export function TopicCard({
               </svg>
               已订阅
             </span>
+          ) : (
+            <button
+              onClick={handleSubscribe}
+              disabled={isSubscribing}
+              className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-900 text-white hover:bg-gray-700 active:scale-95 transition-all duration-150 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubscribing ? (
+                <svg
+                  className="w-3 h-3 animate-spin"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-3 h-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              )}
+              订阅
+            </button>
           )}
         </div>
 
         {/* 标题 */}
-        <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2 flex-grow">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2 grow">
           {topic.title}
         </h3>
 
@@ -158,7 +245,7 @@ export function TopicCard({
                 d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
               />
             </svg>
-            <span>{topic.subscriberCount} 订阅</span>
+            <span>{subscriberCount} 订阅</span>
           </div>
         </div>
       </div>

@@ -449,6 +449,39 @@ export async function syncReportToSecondMe(
   }
 }
 
+/**
+ * 将用户接受的单条启发上报到 SecondMe Agent Memory
+ */
+export async function acceptInsightToSecondMe(
+  accessToken: string,
+  insight: {
+    summaryId: string;
+    topicId: string;
+    topicTitle: string;
+    insightText: string;
+    insightIndex: number;
+  },
+): Promise<{ eventId: number; isDuplicate: boolean }> {
+  const objectId = `${insight.summaryId}_${insight.topicId}_${insight.insightIndex}`;
+
+  return reportToAgentMemory(accessToken, {
+    action: "insight_accepted",
+    channel: {
+      kind: "athena_academy",
+      id: insight.topicId,
+    },
+    refs: [
+      {
+        objectType: "wander_insight",
+        objectId,
+        contentPreview: insight.insightText.slice(0, 500),
+      },
+    ],
+    displayText: `从「${insight.topicTitle}」获得了启发：${insight.insightText}`,
+    importance: 0.7,
+  });
+}
+
 export interface WanderTopicSummary {
   topicId: string;
   title: string;
@@ -499,7 +532,7 @@ topicId: ${t.topicId}`;
 
   const topicIdList = topics.map((t) => t.topicId).join('", "');
 
-  const actionControl = `仅输出合法 JSON 对象，不要解释。
+  const actionControl = `仅输出合法 JSON 对象，不要解释，不要使用 markdown 代码块。
 输出结构：
 {
   "topics": [
@@ -508,24 +541,29 @@ topicId: ${t.topicId}`;
       "title": "话题标题",
       "insights": ["启发1", "启发2"],
       "recommended": true 或 false,
-      "reason": "建议关注或不关注的原因"
+      "reason": "原因（20字以内）"
     }
   ],
-  "overallTakeaways": ["认知提升建议1", "认知提升建议2", "认知提升建议3"]
+  "overallTakeaways": ["建议1", "建议2", "建议3"]
 }
+
+重要约束（防止输出过长）：
+- insights 每个话题仅输出 1~2 条，每条不超过 30 字
+- reason 不超过 20 字
+- overallTakeaways 仅输出 2~3 条，每条不超过 40 字
 
 话题 ID 必须从此列表中取值：["${topicIdList}"]
 
-你是一个知识型 AI 分身，刚刚完成了一次「漫游」。请基于你自身的知识库，对以下话题逐一进行分析：
+你是一个知识型 AI 分身，刚刚完成了一次「漫游」。请基于你自身的知识库，对以下话题逐一进行简洁分析：
 
 ${topicsText}
 
 对每个话题请做到：
-1. 提炼 2~3 条启发（结合你自身知识库与话题讨论内容的差异，找出对用户有价值的认知点）
-2. 判断是否建议用户重点关注（根据话题与用户兴趣领域的契合度、知识价值）
-3. 给出建议理由
+1. 提炼 1~2 条简洁启发（不超过 30 字/条）
+2. 判断是否建议用户重点关注
+3. 给出不超过 20 字的理由
 
-最后提炼 3~5 条「overallTakeaways」，从 AI 分身视角告诉用户本次漫游最值得关注的认知升级点。`;
+最后输出 2~3 条「overallTakeaways」（每条不超过 40 字）。`;
 
   const response = await fetch(`${API_BASE_URL}/api/secondme/act/stream`, {
     method: "POST",
@@ -593,7 +631,8 @@ ${topicsText}
   } catch (error) {
     console.error("[generateWanderSummaryContent] JSON 解析失败", {
       error: error instanceof Error ? error.message : String(error),
-      content: content.substring(0, 300),
+      rawContentLength: content.length,
+      strippedContent: stripCodeBlock(content).substring(0, 400),
     });
     return {
       topics: topics.map((t) => ({

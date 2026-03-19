@@ -58,7 +58,7 @@ export async function isInCooldown(
     return false;
   }
 
-  const cooldownMs = 2 * 60 * 60 * 1000; // 2 小时
+  const cooldownMs = 6 * 60 * 60 * 1000; // 6 小时
   const timeSinceLastVisit = Date.now() - subscription.lastVisitAt.getTime();
 
   return timeSinceLastVisit < cooldownMs;

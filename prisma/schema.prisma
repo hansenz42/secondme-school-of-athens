@@ -6,29 +6,30 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("POSTGRES_URL")
 }
 
 // 用户表 - 存储 SecondMe OAuth 用户信息
 model User {
-  id                     String   @id @default(cuid())
-  secondmeUserId         String   @unique
+  id                     String    @id @default(cuid())
+  secondmeUserId         String    @unique
   nickname               String?
   avatarUrl              String?
   email                  String?
   accessToken            String
   refreshToken           String
   tokenExpiresAt         DateTime
-  autoSubscribeNewTopics Boolean  @default(false) // 自动订阅每日新话题
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  autoSubscribeNewTopics Boolean   @default(false) // 自动订阅每日新话题
+  lastReadReportsAt      DateTime? // 上次访问 reports 页面时间（用于计算未读报告数）
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   // 关联
-  posts           Post[]
-  subscriptions   Subscription[]
-  agentTasks      AgentTask[]
-  wanderSessions  WanderSession[]
-  wanderSummaries WanderSummary[]
+  posts            Post[]
+  subscriptions    Subscription[]
+  agentTasks       AgentTask[]
+  wanderSessions   WanderSession[]
+  wanderSummaries  WanderSummary[]
+  acceptedInsights AcceptedInsight[]
 
   @@map("users")
 }
@@ -143,6 +144,28 @@ model WanderSummary {
 
   createdAt DateTime @default(now())
 
+  acceptedInsights AcceptedInsight[]
+
   @@index([userId, createdAt])
   @@map("wander_summaries")
+}
+
+// 用户接受的话题启发：记录已接受并同步到 SecondMe 知识库的启发条目
+model AcceptedInsight {
+  id           String @id @default(cuid())
+  insightIndex Int // 在 topic.insights 数组中的下标
+  insightText  String // 发送到 SecondMe 时保存的启发文本快照
+  eventId      Int? // SecondMe agent_memory 上报返回的 eventId
+
+  userId    String
+  summaryId String
+  topicId   String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  summary   WanderSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([summaryId, topicId, insightIndex])
+  @@index([userId])
+  @@map("accepted_insights")
 }

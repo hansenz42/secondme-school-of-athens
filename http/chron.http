@@ -1,0 +1,16 @@
+### 处理任务
+# @name process-tasks
+GET {{host}}/api/cron/process-tasks
+Authorization: Bearer {{CRON_SECRET}}
+
+
+### 主题抓取
+# @name topic-fetch
+GET {{host}}/api/cron/fetch-topics
+Authorization: Bearer {{CRON_SECRET}}
+
+
+### 漫游
+# @name wander-cron
+GET {{host}}/api/cron/wander
+Authorization: Bearer {{CRON_SECRET}}

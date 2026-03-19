@@ -1,1 +1,0 @@
-curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/fetch-topics

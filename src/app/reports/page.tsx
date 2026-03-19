@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { ReportCard } from "./ReportCard";
 import { MainHeader } from "@/components/MainHeader";
+import { ReportsCountdown } from "@/components/ReportsCountdown";
+import { MarkReportsRead } from "@/components/MarkReportsRead";
 import type { WanderSummaryContent } from "@/lib/agent";
 
 export default async function ReportsPage() {
@@ -13,20 +15,51 @@ export default async function ReportsPage() {
     redirect("/api/auth/login");
   }
 
-  const summaries = await prisma.wanderSummary.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      wanderSession: {
-        select: {
-          totalTopics: true,
-          createdAt: true,
+  const [summaries, fullUser] = await Promise.all([
+    prisma.wanderSummary.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        wanderSession: {
+          select: {
+            totalTopics: true,
+            createdAt: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { lastReadReportsAt: true },
+    }),
+  ]);
 
-  const summaryCount = summaries.length;
+  // 未读报告数：lastReadReportsAt 之后生成的报告
+  const lastRead =
+    (fullUser as { lastReadReportsAt: Date | null } | null)
+      ?.lastReadReportsAt ?? null;
+  const summaryCount = lastRead
+    ? summaries.filter(
+        (s) =>
+          (s as { createdAt: Date }).createdAt.getTime() > lastRead.getTime(),
+      ).length
+    : summaries.length;
+
+  // 查询当前用户已接受的启发，按 summaryId 聚合
+  const accepted = await prisma.acceptedInsight.findMany({
+    where: { userId: user.id },
+    select: { summaryId: true, topicId: true, insightIndex: true },
+  });
+  // key 格式: "${summaryId}:${topicId}_${insightIndex}"
+  const acceptedSet = new Set(
+    (
+      accepted as Array<{
+        summaryId: string;
+        topicId: string;
+        insightIndex: number;
+      }>
+    ).map((a) => `${a.summaryId}:${a.topicId}_${a.insightIndex}`),
+  );
 
   const serializedSummaries = (
     summaries as Array<{
@@ -48,6 +81,7 @@ export default async function ReportsPage() {
   return (
     <div className="min-h-screen bg-white">
       <MainHeader user={user} activeTab="reports" reportCount={summaryCount} />
+      <MarkReportsRead />
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* 标题区域 */}
@@ -58,6 +92,9 @@ export default async function ReportsPage() {
           <p className="text-lg text-gray-700 max-w-2xl">
             每次漫游后，你的 SecondMe 会结合自身知识库，为你提炼认知升级要点
           </p>
+          <ReportsCountdown
+            lastWanderedAt={serializedSummaries[0]?.wanderedAt ?? null}
+          />
         </section>
 
         {/* 报告列表 */}
@@ -95,7 +132,17 @@ export default async function ReportsPage() {
           <div className="space-y-6">
             {serializedSummaries.map(
               (summary: (typeof serializedSummaries)[number]) => (
-                <ReportCard key={summary.id} summary={summary} />
+                <ReportCard
+                  key={summary.id}
+                  summary={summary}
+                  initialAccepted={
+                    new Set(
+                      [...acceptedSet]
+                        .filter((k) => k.startsWith(`${summary.id}:`))
+                        .map((k) => k.slice(summary.id.length + 1)),
+                    )
+                  }
+                />
               ),
             )}
           </div>

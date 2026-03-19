@@ -22,9 +22,19 @@ export default async function MySubscriptionsPage({
   const { page: pageParam } = await searchParams;
   const currentPage = Math.max(1, parseInt(pageParam || "1", 10) || 1);
 
-  // 获取用户的漫游总结数量
+  // 获取用户的未读漫游总结数量
+  const fullUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { lastReadReportsAt: true },
+  });
+  const lastReadAt =
+    (fullUser as { lastReadReportsAt: Date | null } | null)
+      ?.lastReadReportsAt ?? null;
   const reportCount = await prisma.wanderSummary.count({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+    },
   });
 
   // 并行查询订阅总数和分页数据
