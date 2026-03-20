@@ -511,6 +511,11 @@ export interface WanderSummaryContent {
  * 生成 wander 总结内容
  * Agent 结合自身知识库，对本次 wander 的话题逐一提炼启发，并给出认知提升建议
  * 同时从话题讨论者中识别值得关注的有趣用户
+ *
+ * 优化策略：
+ * - LLM 输出不含已知字段（title 由输入补全，recommendedUsers 完整信息由 candidateMap 补全）
+ * - 每批最多 3 个话题，超出时并发分批调用后合并
+ * - 精简输入上下文（每话题最多 3 条帖子，每条最多 120 字）
  */
 export async function generateWanderSummaryContent(
   accessToken: string,
@@ -534,186 +539,227 @@ export async function generateWanderSummaryContent(
     candidateUsersCount: candidateUsers?.length ?? 0,
   });
 
-  const topicsText = topics
-    .map((t, i) => {
-      const postsText = t.posts
-        .slice(0, 5)
-        .map(
-          (p) =>
-            `  [${p.authorType === "agent" ? "AI 分身" : p.authorName}]: ${p.content.slice(0, 200)}`,
-        )
-        .join("\n");
-      return `【话题 ${i + 1}】${t.title}${t.content ? `\n描述：${t.content.slice(0, 100)}` : ""}
-讨论内容：
+  // 用于 post-processing 补全的 Map
+  const topicInputMap = new Map(topics.map((t) => [t.topicId, t]));
+  const candidateMap = new Map(candidateUsers?.map((u) => [u.userId, u]) ?? []);
+
+  /** 单批次调用：最多 3 个话题，只有第一批才生成 overallTakeaways 和 recommendedUsers */
+  async function callTopicBatch(
+    batchTopics: typeof topics,
+    batchCandidates: typeof candidateUsers,
+    includeOverall: boolean,
+  ): Promise<{
+    topics: Array<{
+      topicId: string;
+      insights: string[];
+      recommended: boolean;
+      reason: string;
+    }>;
+    overallTakeaways?: string[];
+    recommendedUsers?: Array<{ userId: string; reason: string }>;
+  }> {
+    const topicsText = batchTopics
+      .map((t, i) => {
+        const postsText = t.posts
+          .slice(0, 3) // 每话题最多 3 条帖子（原 5 条）
+          .map(
+            (p) =>
+              `  [${p.authorType === "agent" ? "AI分身" : p.authorName}]: ${p.content.slice(0, 120)}`, // 原 200 字
+          )
+          .join("\n");
+        return `【话题${i + 1}】${t.title}${t.content ? `\n描述：${t.content.slice(0, 60)}` : ""}
+讨论：
 ${postsText || "  （暂无讨论）"}
 topicId: ${t.topicId}`;
-    })
-    .join("\n\n---\n\n");
+      })
+      .join("\n\n---\n\n");
 
-  const topicIdList = topics.map((t) => t.topicId).join('", "');
+    const topicIdList = batchTopics.map((t) => t.topicId).join('", "');
+    const hasCandidates = !!batchCandidates && batchCandidates.length > 0;
 
-  // 候选用户信息（若有）
-  const candidateUsersText =
-    candidateUsers && candidateUsers.length > 0
-      ? `\n\n本次讨论中的真实用户（可供推荐给关注）：\n${candidateUsers
+    const candidateUsersText = hasCandidates
+      ? `\n\n可推荐的真实用户：\n${batchCandidates!
           .map(
             (u) =>
-              `  [userId: ${u.userId}] ${u.name}（来自话题 topicId: ${u.topicId}）：${u.sampleContent.slice(0, 120)}`,
+              `  [userId: ${u.userId}] ${u.name}（topicId: ${u.topicId}）：${u.sampleContent.slice(0, 80)}`, // 原 120 字
           )
           .join("\n")}`
       : "";
 
-  const recommendedUsersSchema =
-    candidateUsers && candidateUsers.length > 0
-      ? `,\n  "recommendedUsers": [\n    {\n      "userId": "候选用户的 userId",\n      "reason": "推荐理由（20字以内）"\n    }\n  ]`
-      : `,\n  "recommendedUsers": []`;
-
-  const candidateUserIds =
-    candidateUsers && candidateUsers.length > 0
-      ? `\n候选用户 userId 列表：[${candidateUsers.map((u) => `"${u.userId}"`).join(", ")}]`
+    const candidateUserIdsNote = hasCandidates
+      ? `\ncandidateUserIds（只能从此列表取）: [${batchCandidates!.map((u) => `"${u.userId}"`).join(", ")}]`
       : "";
 
-  const actionControl = `仅输出合法 JSON 对象，不要解释，不要使用 markdown 代码块。
-输出结构：
+    // LLM 不输出 title（已知），不输出 recommendedUsers 的完整字段（后处理补全）
+    const overallSchema = includeOverall
+      ? `,\n  "overallTakeaways": ["建议1（≤40字）", "建议2"]`
+      : "";
+    const recommendedSchema = hasCandidates
+      ? `,\n  "recommendedUsers": [{"userId": "候选userId", "reason": "≤20字"}]`
+      : `,\n  "recommendedUsers": []`;
+
+    const actionControl = `仅输出合法 JSON，不要解释，不用 markdown 代码块。格式：
 {
   "topics": [
     {
-      "topicId": "话题ID（从以下列表中取）",
-      "title": "话题标题",
-      "insights": ["启发1", "启发2"],
-      "recommended": true 或 false,
-      "reason": "原因（20字以内）"
+      "topicId": "从列表中取",
+      "insights": ["启发（≤30字）"],
+      "recommended": true,
+      "reason": "≤20字"
     }
-  ],
-  "overallTakeaways": ["建议1", "建议2", "建议3"]${recommendedUsersSchema}
+  ]${overallSchema}${recommendedSchema}
 }
 
-重要约束（防止输出过长）：
-- insights 每个话题仅输出 1~2 条，每条不超过 30 字
-- reason 不超过 20 字
-- overallTakeaways 仅输出 2~3 条，每条不超过 40 字
-- recommendedUsers 最多推荐 3 人，观点深刻、令人印象深刻的真实用户；无合适人选时返回空数组 []
-- recommendedUsers 中的 userId 必须来自候选列表，不得编造${candidateUserIds}
+约束：
+- insights 每话题 1~3 条，≤30字/条
+- recommended: 大约总话题数的 1/3 标记为推荐，不要全部标记为推荐
+- reason ≤20字
+- overallTakeaways 2~3 条，≤40字/条（若需要）
+- recommendedUsers 最多 3 人，无合适人选返回 []${candidateUserIdsNote}
+- topicId 必须来自: ["${topicIdList}"]
 
-话题 ID 必须从此列表中取值：["${topicIdList}"]
+${topicsText}${candidateUsersText}`;
 
-你是一个知识型 AI 分身，刚刚完成了一次「漫游」。请基于你自身的知识库，对以下话题逐一进行简洁分析：
-
-${topicsText}${candidateUsersText}
-
-对每个话题请做到：
-1. 提炼 1~2 条简洁启发（不超过 30 字/条）
-2. 判断是否建议用户重点关注
-3. 给出不超过 20 字的理由
-
-最后输出 2~3 条「overallTakeaways」（每条不超过 40 字）。`;
-
-  const response = await fetch(`${API_BASE_URL}/api/secondme/act/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      message: "请对本次漫游阅读的话题进行总结分析，帮助用户提升认知",
-      actionControl,
-    }),
-  });
-
-  if (!response.ok) {
-    console.error("[generateWanderSummaryContent] Act API 调用失败", {
-      status: response.status,
+    const response = await fetch(`${API_BASE_URL}/api/secondme/act/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        message: "请对本次漫游阅读的话题进行总结分析",
+        actionControl,
+      }),
     });
-    // 返回降级内容
-    return {
-      topics: topics.map((t) => ({
-        topicId: t.topicId,
-        title: t.title,
-        insights: ["内容分析暂时不可用"],
-        recommended: false,
-        reason: "分析服务暂时不可用",
-      })),
-      overallTakeaways: ["本次漫游总结生成失败，请稍后重试"],
-      recommendedUsers: [],
-      generatedAt: new Date().toISOString(),
-    };
-  }
 
-  const responseText = await response.text();
-  let content = "";
+    if (!response.ok) {
+      console.error("[generateWanderSummaryContent] Act API 调用失败", {
+        status: response.status,
+        batchTopicIds: batchTopics.map((t) => t.topicId),
+      });
+      return {
+        topics: batchTopics.map((t) => ({
+          topicId: t.topicId,
+          insights: ["内容分析暂时不可用"],
+          recommended: false,
+          reason: "分析服务暂时不可用",
+        })),
+        overallTakeaways: includeOverall
+          ? ["本次漫游总结生成失败，请稍后重试"]
+          : undefined,
+        recommendedUsers: hasCandidates ? [] : undefined,
+      };
+    }
 
-  for (const line of responseText.split("\n")) {
-    if (!line.startsWith("data: ")) continue;
-    const data = line.slice(6).trim();
-    if (data === "[DONE]") break;
+    const responseText = await response.text();
+    let content = "";
+
+    for (const line of responseText.split("\n")) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6).trim();
+      if (data === "[DONE]") break;
+      try {
+        const parsed = JSON.parse(data);
+        const delta = parsed?.choices?.[0]?.delta?.content;
+        if (delta) content += delta;
+      } catch {
+        // 忽略非 JSON 行
+      }
+    }
+
     try {
-      const parsed = JSON.parse(data);
-      const delta = parsed?.choices?.[0]?.delta?.content;
-      if (delta) content += delta;
-    } catch {
-      // 忽略非 JSON 行
+      const result = JSON.parse(stripCodeBlock(content));
+      return {
+        topics: Array.isArray(result.topics) ? result.topics : [],
+        overallTakeaways:
+          includeOverall && Array.isArray(result.overallTakeaways)
+            ? result.overallTakeaways
+            : undefined,
+        recommendedUsers:
+          hasCandidates && Array.isArray(result.recommendedUsers)
+            ? result.recommendedUsers
+            : undefined,
+      };
+    } catch (error) {
+      console.error("[generateWanderSummaryContent] JSON 解析失败", {
+        error: error instanceof Error ? error.message : String(error),
+        rawContentLength: content.length,
+        strippedContent: stripCodeBlock(content).substring(0, 400),
+      });
+      return {
+        topics: batchTopics.map((t) => ({
+          topicId: t.topicId,
+          insights: ["内容解析失败"],
+          recommended: false,
+          reason: "内容解析失败",
+        })),
+        overallTakeaways: includeOverall
+          ? ["本次漫游总结解析失败，请稍后重试"]
+          : undefined,
+        recommendedUsers: hasCandidates ? [] : undefined,
+      };
     }
   }
 
-  // 构建候选用户 Map 方便快速查找
-  const candidateMap = new Map(candidateUsers?.map((u) => [u.userId, u]) ?? []);
-
-  try {
-    const result = JSON.parse(stripCodeBlock(content));
-
-    // 解析并补全 recommendedUsers
-    const rawRecommended = Array.isArray(result.recommendedUsers)
-      ? result.recommendedUsers
-      : [];
-    const recommendedUsers: RecommendedUser[] = rawRecommended
-      .filter(
-        (r: { userId?: string }) => r.userId && candidateMap.has(r.userId),
-      )
-      .map((r: { userId: string; reason?: string }) => {
-        const candidate = candidateMap.get(r.userId)!;
-        return {
-          userId: candidate.userId,
-          secondmeUserId: candidate.secondmeUserId,
-          name: candidate.name,
-          avatarUrl: candidate.avatarUrl,
-          reason: r.reason ?? "",
-          topicId: candidate.topicId,
-        };
-      });
-
-    const summary: WanderSummaryContent = {
-      topics: Array.isArray(result.topics) ? result.topics : [],
-      overallTakeaways: Array.isArray(result.overallTakeaways)
-        ? result.overallTakeaways
-        : [],
-      recommendedUsers,
-      generatedAt: new Date().toISOString(),
-    };
-
-    console.log("[generateWanderSummaryContent] 总结生成完毕", {
-      topicsCount: summary.topics.length,
-      overallTakeawaysCount: summary.overallTakeaways.length,
-      recommendedUsersCount: summary.recommendedUsers?.length ?? 0,
-    });
-
-    return summary;
-  } catch (error) {
-    console.error("[generateWanderSummaryContent] JSON 解析失败", {
-      error: error instanceof Error ? error.message : String(error),
-      rawContentLength: content.length,
-      strippedContent: stripCodeBlock(content).substring(0, 400),
-    });
-    return {
-      topics: topics.map((t) => ({
-        topicId: t.topicId,
-        title: t.title,
-        insights: ["内容解析失败"],
-        recommended: false,
-        reason: "内容解析失败",
-      })),
-      overallTakeaways: ["本次漫游总结解析失败，请稍后重试"],
-      recommendedUsers: [],
-      generatedAt: new Date().toISOString(),
-    };
+  // 每批最多 3 个话题，并发执行
+  const BATCH_SIZE = 3;
+  const batches: (typeof topics)[] = [];
+  for (let i = 0; i < topics.length; i += BATCH_SIZE) {
+    batches.push(topics.slice(i, i + BATCH_SIZE));
   }
+
+  const results = await Promise.all(
+    batches.map((batch, idx) =>
+      callTopicBatch(
+        batch,
+        idx === 0 ? candidateUsers : undefined, // 只有第一批传候选用户
+        idx === 0, // 只有第一批生成 overallTakeaways
+      ),
+    ),
+  );
+
+  // 合并所有批次结果
+  const firstResult = results[0];
+  const rawTopics = results.flatMap((r) => r.topics);
+
+  // post-processing：从输入 map 补全 title（LLM 未输出该字段）
+  const mergedTopics: WanderTopicSummary[] = rawTopics.map((t) => ({
+    topicId: t.topicId,
+    title: topicInputMap.get(t.topicId)?.title ?? t.topicId,
+    insights: Array.isArray(t.insights) ? t.insights : [],
+    recommended: !!t.recommended,
+    reason: t.reason ?? "",
+  }));
+
+  // post-processing：从 candidateMap 补全 recommendedUsers 完整信息（LLM 只输出 userId+reason）
+  const rawRecommended = firstResult.recommendedUsers ?? [];
+  const recommendedUsers: RecommendedUser[] = rawRecommended
+    .filter((r: { userId?: string }) => r.userId && candidateMap.has(r.userId))
+    .map((r: { userId: string; reason?: string }) => {
+      const candidate = candidateMap.get(r.userId)!;
+      return {
+        userId: candidate.userId,
+        secondmeUserId: candidate.secondmeUserId,
+        name: candidate.name,
+        avatarUrl: candidate.avatarUrl,
+        reason: r.reason ?? "",
+        topicId: candidate.topicId,
+      };
+    });
+
+  const summary: WanderSummaryContent = {
+    topics: mergedTopics,
+    overallTakeaways: firstResult.overallTakeaways ?? [],
+    recommendedUsers,
+    generatedAt: new Date().toISOString(),
+  };
+
+  console.log("[generateWanderSummaryContent] 总结生成完毕", {
+    topicsCount: summary.topics.length,
+    overallTakeawaysCount: summary.overallTakeaways.length,
+    recommendedUsersCount: summary.recommendedUsers?.length ?? 0,
+    batchCount: batches.length,
+  });
+
+  return summary;
 }

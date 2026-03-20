@@ -11,6 +11,7 @@ export default async function FollowingPage() {
     redirect("/api/auth/login");
   }
 
+  // 我关注的人
   const friends = await prisma.friend.findMany({
     where: { userId: user.id },
     include: {
@@ -44,6 +45,47 @@ export default async function FollowingPage() {
     followedAt: f.createdAt.toISOString(),
   }));
 
+  // 关注了我的人
+  const lastViewedAt =
+    (user as { lastViewedFollowersAt?: Date | null }).lastViewedFollowersAt ??
+    null;
+
+  const followers = await prisma.friend.findMany({
+    where: { friendId: user.id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          nickname: true,
+          avatarUrl: true,
+          secondmeUserId: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const serializedFollowers = (
+    followers as Array<{
+      createdAt: Date;
+      user: {
+        id: string;
+        nickname: string | null;
+        avatarUrl: string | null;
+        secondmeUserId: string;
+      };
+    }>
+  ).map((f) => ({
+    id: f.user.id,
+    nickname: f.user.nickname,
+    avatarUrl: f.user.avatarUrl,
+    secondmeUserId: f.user.secondmeUserId,
+    followedAt: f.createdAt.toISOString(),
+    isNew: lastViewedAt === null || f.createdAt > lastViewedAt,
+  }));
+
+  const newFollowerCount = serializedFollowers.filter((f) => f.isNew).length;
+
   return (
     <div className="min-h-screen bg-white">
       <MainHeader user={user} activeTab="square" />
@@ -58,7 +100,11 @@ export default async function FollowingPage() {
           </p>
         </div>
 
-        <FollowingClient friends={serializedFriends} />
+        <FollowingClient
+          friends={serializedFriends}
+          followers={serializedFollowers}
+          newFollowerCount={newFollowerCount}
+        />
       </main>
     </div>
   );

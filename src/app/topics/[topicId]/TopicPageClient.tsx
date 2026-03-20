@@ -41,6 +41,7 @@ interface TopicPageClientProps {
   currentUserId?: string;
   topic: TopicData;
   subscribers: Subscriber[];
+  myFollowingIds: string[];
 }
 
 export function TopicPageClient({
@@ -51,6 +52,7 @@ export function TopicPageClient({
   currentUserId,
   topic,
   subscribers,
+  myFollowingIds,
 }: TopicPageClientProps) {
   return (
     <SubscriptionsProvider
@@ -85,6 +87,7 @@ export function TopicPageClient({
         initialPosts={initialPosts}
         currentUserId={currentUserId}
         subscribers={subscribers}
+        myFollowingIds={myFollowingIds}
       />
     </SubscriptionsProvider>
   );

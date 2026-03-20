@@ -12,9 +12,10 @@ interface User {
 
 interface UserProfileProps {
   user: User;
+  newFollowerCount?: number;
 }
 
-export function UserProfile({ user }: UserProfileProps) {
+export function UserProfile({ user, newFollowerCount = 0 }: UserProfileProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [shades, setShades] = useState<{ shade: string; score: number }[]>([]);
   const [loadingShades, setLoadingShades] = useState(false);
@@ -67,15 +68,21 @@ export function UserProfile({ user }: UserProfileProps) {
         }}
         className="flex items-center gap-3 px-4 py-2 bg-white border border-[#E8E6E1] rounded-xl hover:border-[#6C5CE7] transition-all duration-200"
       >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-          {user.avatarUrl ? (
-            <img
-              src={user.avatarUrl}
-              alt={user.nickname || "用户"}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : (
-            user.nickname?.charAt(0) || "用"
+        {/* 头像 + 通知圆点 */}
+        <div className="relative">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.nickname || "用户"}
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              user.nickname?.charAt(0) || "用"
+            )}
+          </div>
+          {newFollowerCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
           )}
         </div>
         <span className="text-[#2D3436] font-medium text-sm">
@@ -170,7 +177,12 @@ export function UserProfile({ user }: UserProfileProps) {
                   d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
                 />
               </svg>
-              <span className="font-medium">关注列表</span>
+              <span className="font-medium flex-1">关注列表</span>
+              {newFollowerCount > 0 && (
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500 text-white font-semibold leading-none">
+                  {newFollowerCount}
+                </span>
+              )}
             </Link>
             <button
               onClick={handleLogout}

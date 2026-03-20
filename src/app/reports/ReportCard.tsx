@@ -395,7 +395,7 @@ export function ReportCard({
                                           />
                                         </svg>
                                       )}
-                                      整合到知识库
+                                      加入到知识库
                                     </button>
                                   )}
                                 </li>

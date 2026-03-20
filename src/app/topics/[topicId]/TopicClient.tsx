@@ -31,6 +31,7 @@ interface TopicClientProps {
   initialPosts: Post[];
   currentUserId?: string;
   subscribers: Subscriber[];
+  myFollowingIds: string[];
   topic: {
     id: string;
     title: string;
@@ -48,16 +49,50 @@ export function TopicClient({
   isLoggedIn,
   isSubscribed: initialSubscribed,
   initialPosts,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  currentUserId: _currentUserId,
+  currentUserId,
   topic,
   subscribers,
+  myFollowingIds,
 }: TopicClientProps) {
   const { subscribe, unsubscribe } = useSubscriptions();
   const router = useRouter();
   const [posts] = useState<Post[]>(initialPosts);
   const [isSubscribed, setIsSubscribed] = useState(initialSubscribed);
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [followingSet, setFollowingSet] = useState<Set<string>>(
+    () => new Set(myFollowingIds),
+  );
+  const [followingLoading, setFollowingLoading] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const handleFollow = async (userId: string) => {
+    if (!isLoggedIn) {
+      window.location.href = "/api/auth/login";
+      return;
+    }
+    if (followingLoading.has(userId)) return;
+    setFollowingLoading((prev) => new Set(prev).add(userId));
+    try {
+      const res = await fetch("/api/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendId: userId }),
+      });
+      const result = await res.json();
+      if (result.code === 0) {
+        setFollowingSet((prev) => new Set(prev).add(userId));
+      }
+    } catch (err) {
+      console.error("Follow error:", err);
+    } finally {
+      setFollowingLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+  };
 
   const handleSubscribe = async () => {
     if (!isLoggedIn) {
@@ -123,7 +158,7 @@ export function TopicClient({
       <div className="space-y-4 mb-8">
         {posts.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-[#E8E6E1]">
-            <p className="text-[#636E72]">还没有 SecondMe Agent参与讨论</p>
+            <p className="text-[#636E72]">还没有分身参与讨论</p>
           </div>
         ) : (
           posts.map((post) => (
@@ -177,7 +212,7 @@ export function TopicClient({
                     </span>
                     {post.authorType === "agent" && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-[#6C5CE7]/10 text-[#6C5CE7]">
-                        SecondMe Agent
+                        SecondMe 分身
                       </span>
                     )}
                     <span className="text-xs text-[#B2BEC3]">
@@ -274,27 +309,98 @@ export function TopicClient({
             </span>
           </h3>
           <div className="flex flex-wrap gap-3">
-            {subscribers.map((sub) => (
-              <div
-                key={sub.id}
-                className="group relative flex flex-col items-center gap-1"
-              >
-                {sub.avatarUrl ? (
-                  <img
-                    src={sub.avatarUrl}
-                    alt={sub.nickname || "用户"}
-                    className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#6C5CE7]/30 transition-all"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#EDE9FF] flex items-center justify-center text-sm font-semibold text-[#6C5CE7] ring-2 ring-transparent group-hover:ring-[#6C5CE7]/30 transition-all">
-                    {(sub.nickname || "匿").charAt(0)}
+            {subscribers.map((sub) => {
+              const isSelf = sub.id === currentUserId;
+              const isFollowing = followingSet.has(sub.id);
+              const isLoading = followingLoading.has(sub.id);
+              return (
+                <div
+                  key={sub.id}
+                  className="group relative flex flex-col items-center gap-1"
+                >
+                  {/* 头像 */}
+                  <div className="relative">
+                    {sub.avatarUrl ? (
+                      <img
+                        src={sub.avatarUrl}
+                        alt={sub.nickname || "用户"}
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#6C5CE7]/30 transition-all"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#EDE9FF] flex items-center justify-center text-sm font-semibold text-[#6C5CE7] ring-2 ring-transparent group-hover:ring-[#6C5CE7]/30 transition-all">
+                        {(sub.nickname || "匿").charAt(0)}
+                      </div>
+                    )}
+                    {/* 关注按钮：非自身且未关注时显示 */}
+                    {!isSelf && !isFollowing && (
+                      <button
+                        onClick={() => handleFollow(sub.id)}
+                        disabled={isLoading}
+                        title="关注该用户"
+                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#6C5CE7] text-white flex items-center justify-center shadow-md hover:bg-[#5B4AD6] transition-colors disabled:opacity-60"
+                      >
+                        {isLoading ? (
+                          <svg
+                            className="w-2.5 h-2.5 animate-spin"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            />
+                          </svg>
+                        ) : (
+                          <svg
+                            className="w-2.5 h-2.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M12 4v16m8-8H4"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                    {/* 已关注标记 */}
+                    {!isSelf && isFollowing && (
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md">
+                        <svg
+                          className="w-2.5 h-2.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </div>
+                    )}
                   </div>
-                )}
-                <span className="text-[10px] text-[#B2BEC3] max-w-12 truncate text-center">
-                  {sub.nickname || "匿名"}
-                </span>
-              </div>
-            ))}
+                  <span className="text-[10px] text-[#B2BEC3] max-w-12 truncate text-center">
+                    {sub.nickname || "匿名"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

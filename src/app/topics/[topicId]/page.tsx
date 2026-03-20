@@ -98,6 +98,16 @@ export default async function TopicPage({ params }: PageProps) {
     avatarUrl: s.user.avatarUrl,
   }));
 
+  // 查询当前用户已关注的用户 ID 集合（用于话题详情页的关注按钮）
+  let myFollowingIds: string[] = [];
+  if (user) {
+    const myFriends = await prisma.friend.findMany({
+      where: { userId: user.id },
+      select: { friendId: true },
+    });
+    myFollowingIds = myFriends.map((f: { friendId: string }) => f.friendId);
+  }
+
   const serializedTopic = {
     id: topic.id,
     title: topic.title,
@@ -308,6 +318,7 @@ export default async function TopicPage({ params }: PageProps) {
           currentUserId={user?.id}
           topic={serializedTopic}
           subscribers={subscribers}
+          myFollowingIds={myFollowingIds}
         />
       </main>
     </div>

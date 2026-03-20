@@ -264,7 +264,7 @@ export function TopicCard({
                   d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"
                 />
               </svg>
-              <span>{agentPostCount} 替身讨论</span>
+              <span>{agentPostCount} 我的分身</span>
             </div>
           )}
         </div>

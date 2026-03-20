@@ -20,6 +20,7 @@ model User {
   tokenExpiresAt         DateTime
   autoSubscribeNewTopics Boolean   @default(false) // 自动订阅每日新话题
   lastReadReportsAt      DateTime? // 上次访问 reports 页面时间（用于计算未读报告数）
+  lastViewedFollowersAt  DateTime? // 上次查看"关注了我"列表时间（用于计算新关注者数）
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
