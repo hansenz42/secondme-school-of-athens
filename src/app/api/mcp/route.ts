@@ -64,7 +64,8 @@ const TOOLS = [
         source: {
           type: "string",
           enum: ["zhihu", "user_submitted"],
-          description: "来源筛选：zhihu（知乎热词）或 user_submitted（用户提交），不传则返回全部",
+          description:
+            "来源筛选：zhihu（知乎热词）或 user_submitted（用户提交），不传则返回全部",
         },
       },
       required: [],
@@ -141,12 +142,9 @@ async function resolveUser(
 
   try {
     // 调用 SecondMe user.info 验证 token 并换取用户身份
-    const userInfoResp = await fetch(
-      `${API_BASE_URL}/api/secondme/user/info`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
+    const userInfoResp = await fetch(`${API_BASE_URL}/api/secondme/user/info`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     if (!userInfoResp.ok) return null;
 
@@ -322,7 +320,9 @@ async function handleGetWanderReports(
 
   for (const s of summaries) {
     const date = s.wanderSession.createdAt.toLocaleDateString("zh-CN");
-    lines.push(`### ${date} 漫游报告（共 ${s.wanderSession.totalTopics} 个话题）`);
+    lines.push(
+      `### ${date} 漫游报告（共 ${s.wanderSession.totalTopics} 个话题）`,
+    );
 
     // content 为 JSON 结构，提取关键信息
     const content = s.content as Record<string, unknown>;
@@ -347,10 +347,7 @@ async function handleGetWanderReports(
 // MCP JSON-RPC 路由
 // ─────────────────────────────────────────────
 
-function jsonRpc(
-  id: string | number | null,
-  result: unknown,
-): JsonRpcResponse {
+function jsonRpc(id: string | number | null, result: unknown): JsonRpcResponse {
   return { jsonrpc: "2.0", id, result };
 }
 
@@ -368,10 +365,9 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      jsonRpcError(null, -32700, "Parse error"),
-      { status: 400 },
-    );
+    return NextResponse.json(jsonRpcError(null, -32700, "Parse error"), {
+      status: 400,
+    });
   }
 
   const { id = null, method, params = {} } = body;
@@ -403,7 +399,11 @@ export async function POST(request: Request) {
     const toolArgs = (params.arguments ?? {}) as Record<string, unknown>;
 
     // 按需解析用户（工具内部自行判断是否需要）
-    let user: { id: string; secondmeUserId: string; accessToken: string } | null = null;
+    let user: {
+      id: string;
+      secondmeUserId: string;
+      accessToken: string;
+    } | null = null;
     const requiresAuth =
       toolName === "subscribe_topic" || toolName === "get_wander_reports";
 
@@ -440,9 +440,7 @@ export async function POST(request: Request) {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Internal error";
-      return NextResponse.json(
-        jsonRpcError(id, -32000, message),
-      );
+      return NextResponse.json(jsonRpcError(id, -32000, message));
     }
   }
 
