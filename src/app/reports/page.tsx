@@ -109,8 +109,8 @@ export default async function ReportsPage() {
             </h1>
             <p className="text-lg text-white/85 max-w-2xl leading-relaxed drop-shadow mb-6">
               你的 SecondMe
-              分身结束漫游后，都会给你提交一份启发报告，如果你感兴趣，你可以加入到
-              SecondMe 知识库中。
+              分身每次结束漫游后，都会生成一份启发报告，如果你对其中的启发感兴趣，你可以加入到
+              SecondMe 知识库中。记得常回来看看！
             </p>
             <div className="drop-shadow">
               <ReportsCountdown
