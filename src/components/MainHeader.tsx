@@ -90,7 +90,7 @@ export async function MainHeader({
               <path d="M4 18h16M2 21h20" />
             </svg>
           </div>
-          <span className="text-lg font-bold text-gray-900 tracking-tight">
+          <span className="hidden sm:inline text-lg font-bold text-gray-900 tracking-tight">
             雅典学院
           </span>
         </Link>
